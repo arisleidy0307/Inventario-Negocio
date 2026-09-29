@@ -1,0 +1,49 @@
+# Salidas de compilacion
+[Bb]in/
+[Oo]bj/
+[Oo]ut/
+[Ll]og/
+[Ll]ogs/
+
+# Archivos de Visual Studio / Rider / VS Code
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.rsuser
+
+# Resultados de pruebas y cobertura
+TestResult*/
+[Tt]est[Rr]esult*/
+coverage*.xml
+
+# NuGet
+*.nupkg
+*.snupkg
+packages/
+project.lock.json
+
+# Publicacion
+publish/
+PublishScripts/
+
+# Base de datos local y archivos generados
+*.mdf
+*.ldf
+*.db
+*.sqlite
+
+# Credenciales y configuracion local (nunca versionar)
+.env
+.env.*
+!.env.example
+appsettings.Development.json
+appsettings.Local.json
+secrets.json
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
