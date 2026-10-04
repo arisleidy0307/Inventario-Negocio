@@ -4,5 +4,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
+    <!-- Permite ejecutar con un runtime más nuevo (.NET 9 o 10) si no está instalado .NET 8. -->
+    <RollForward>Major</RollForward>
   </PropertyGroup>
 </Project>
