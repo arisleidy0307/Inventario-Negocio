@@ -1,7 +1,7 @@
 using Inventario.Api.Contratos;
+using Inventario.Core.Seguridad;
 using Inventario.Core.Servicios;
 using Inventario.Api.Infraestructura;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Inventario.Api.Controllers;
@@ -22,6 +22,7 @@ public class AuthController : ControllerBase
 
     /// <summary>RF-CA-01, 02, 14, 15: registra un usuario inactivo y encola el correo de activación.</summary>
     [HttpPost("registro")]
+    [RequiereOperacion(Operaciones.Registrar)]
     public async Task<IActionResult> Registrar(RegistroRequest req)
     {
         await _registro.RegistrarAsync(req.Nombre, req.Correo, req.Contrasena);
@@ -31,6 +32,7 @@ public class AuthController : ControllerBase
 
     /// <summary>RF-CA-16: enlace que llega por correo. Responde HTML porque se abre en el navegador.</summary>
     [HttpGet("activar")]
+    [RequiereOperacion(Operaciones.Activar)]
     public async Task<IActionResult> Activar([FromQuery] string? token)
     {
         try
@@ -46,6 +48,7 @@ public class AuthController : ControllerBase
 
     /// <summary>RF-CA-17: misma respuesta exista o no el correo.</summary>
     [HttpPost("reenviar-activacion")]
+    [RequiereOperacion(Operaciones.ReenviarActivacion)]
     public async Task<IActionResult> ReenviarActivacion(CorreoRequest req)
     {
         await _registro.ReenviarActivacionAsync(req.Correo);
@@ -54,6 +57,7 @@ public class AuthController : ControllerBase
 
     /// <summary>RF-CA-03 / RF-CA-19: entrega la credencial de sesión.</summary>
     [HttpPost("login")]
+    [RequiereOperacion(Operaciones.Login)]
     public async Task<ActionResult<LoginResponse>> Login(LoginRequest req)
     {
         var s = await _sesion.IniciarSesionAsync(req.Correo, req.Contrasena);
@@ -63,7 +67,7 @@ public class AuthController : ControllerBase
 
     /// <summary>RF-CA-07: usuario autenticado y su rol.</summary>
     [HttpGet("yo")]
-    [Authorize]
+    [RequiereOperacion(Operaciones.Yo)]
     public async Task<ActionResult<UsuarioActualResponse>> Yo()
     {
         var u = await _sesion.ObtenerUsuarioAsync(User.UsuarioId());
@@ -72,7 +76,7 @@ public class AuthController : ControllerBase
 
     /// <summary>RF-CA-18: invalida la credencial usada en la petición.</summary>
     [HttpPost("logout")]
-    [Authorize]
+    [RequiereOperacion(Operaciones.Logout)]
     public async Task<IActionResult> Logout()
     {
         await _sesion.CerrarSesionAsync(User.SesionId());
