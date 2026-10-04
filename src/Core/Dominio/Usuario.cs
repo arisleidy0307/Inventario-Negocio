@@ -19,6 +19,9 @@ public class Usuario
     /// <summary>La cuenta nace inactiva y se activa con el enlace del correo (RF-CA-15, RF-CA-16).</summary>
     public bool Activo { get; set; }
 
+    /// <summary>RF-CA-20: un Administrador puede desactivar la cuenta; desactivada no inicia sesión.</summary>
+    public bool Deshabilitado { get; set; }
+
     /// <summary>RF-CA-19: intentos fallidos consecutivos de inicio de sesión.</summary>
     public int IntentosFallidos { get; set; }
 
