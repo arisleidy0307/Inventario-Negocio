@@ -14,6 +14,7 @@ public static class ConfiguracionCore
         services.AddScoped<ColaCorreos>();
         services.AddScoped<ServicioRegistro>();
         services.AddScoped<ServicioSesion>();
+        services.AddScoped<ServicioUsuarios>();
         return services;
     }
 }
