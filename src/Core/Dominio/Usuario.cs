@@ -19,5 +19,11 @@ public class Usuario
     /// <summary>La cuenta nace inactiva y se activa con el enlace del correo (RF-CA-15, RF-CA-16).</summary>
     public bool Activo { get; set; }
 
+    /// <summary>RF-CA-19: intentos fallidos consecutivos de inicio de sesión.</summary>
+    public int IntentosFallidos { get; set; }
+
+    /// <summary>RF-CA-19: mientras sea posterior a la hora actual, el inicio de sesión se rechaza.</summary>
+    public DateTime? BloqueadoHasta { get; set; }
+
     public DateTime FechaCreacion { get; set; }
 }
