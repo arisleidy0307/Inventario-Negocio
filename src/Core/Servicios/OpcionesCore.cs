@@ -9,6 +9,9 @@ public class OpcionesCore
     /// <summary>ACTIVACION_MINUTOS: vigencia del enlace de activación (por defecto 24 h).</summary>
     public int MinutosActivacion { get; set; } = 24 * 60;
 
+    /// <summary>RECUPERACION_MINUTOS: vigencia del código de recuperación (por defecto 30 min).</summary>
+    public int MinutosRecuperacion { get; set; } = 30;
+
     /// <summary>SESION_HORAS: vigencia de la credencial de sesión (por defecto 8 h).</summary>
     public int HorasSesion { get; set; } = 8;
 

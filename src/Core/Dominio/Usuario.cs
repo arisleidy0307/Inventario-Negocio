@@ -28,5 +28,11 @@ public class Usuario
     /// <summary>RF-CA-19: mientras sea posterior a la hora actual, el inicio de sesión se rechaza.</summary>
     public DateTime? BloqueadoHasta { get; set; }
 
+    /// <summary>
+    /// RF-CA-12: momento del último cambio o restablecimiento de contraseña.
+    /// Toda credencial de sesión emitida antes de este momento deja de ser válida.
+    /// </summary>
+    public DateTime? ContrasenaCambiadaEn { get; set; }
+
     public DateTime FechaCreacion { get; set; }
 }

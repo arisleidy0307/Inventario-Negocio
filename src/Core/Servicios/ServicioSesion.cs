@@ -106,6 +106,7 @@ public class ServicioSesion
         if (sesion?.Usuario is null) return null;
         if (sesion.Revocada || sesion.FechaVencimiento <= ahora) return null;
         if (!sesion.Usuario.Activo || sesion.Usuario.Deshabilitado) return null; // RF-CA-20
+        if (sesion.Usuario.ContrasenaCambiadaEn is { } cambio && sesion.FechaEmision < cambio) return null; // RF-CA-12
 
         return new SesionValidada(sesion.Usuario, sesion);
     }

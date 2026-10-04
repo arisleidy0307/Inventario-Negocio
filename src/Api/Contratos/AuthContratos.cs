@@ -34,3 +34,19 @@ public record LoginRequest(
 public record UsuarioActualResponse(int Id, string Nombre, string Correo, string Rol);
 
 public record LoginResponse(string Token, string Tipo, DateTime VenceUtc, UsuarioActualResponse Usuario);
+
+public record RestablecerRequest(
+    [Required(ErrorMessage = "El código es obligatorio.")]
+    [StringLength(200)]
+    string Codigo,
+    [Required(ErrorMessage = "La nueva contraseña es obligatoria.")]
+    [StringLength(128)]
+    string NuevaContrasena);
+
+public record CambiarPasswordRequest(
+    [Required(ErrorMessage = "La contraseña actual es obligatoria.")]
+    [StringLength(128)]
+    string ContrasenaActual,
+    [Required(ErrorMessage = "La nueva contraseña es obligatoria.")]
+    [StringLength(128)]
+    string NuevaContrasena);

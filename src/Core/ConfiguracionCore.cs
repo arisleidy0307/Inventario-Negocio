@@ -15,6 +15,7 @@ public static class ConfiguracionCore
         services.AddScoped<ServicioRegistro>();
         services.AddScoped<ServicioSesion>();
         services.AddScoped<ServicioUsuarios>();
+        services.AddScoped<ServicioContrasenas>();
         return services;
     }
 }
