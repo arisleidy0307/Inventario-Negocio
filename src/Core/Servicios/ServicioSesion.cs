@@ -72,6 +72,12 @@ public class ServicioSesion
                 "La cuenta no está activa. Ábrela con el enlace que te enviamos por correo o pide uno nuevo.");
         }
 
+        if (usuario.Deshabilitado)
+        {
+            await _db.SaveChangesAsync();
+            throw ExcepcionControlada.Prohibido("La cuenta está desactivada. Contacta al administrador.");
+        }
+
         var (token, hash) = _tokens.Generar();
         var vence = ahora.AddHours(_opciones.HorasSesion);
         _db.Sesiones.Add(new Sesion
@@ -99,7 +105,7 @@ public class ServicioSesion
 
         if (sesion?.Usuario is null) return null;
         if (sesion.Revocada || sesion.FechaVencimiento <= ahora) return null;
-        if (!sesion.Usuario.Activo) return null;
+        if (!sesion.Usuario.Activo || sesion.Usuario.Deshabilitado) return null; // RF-CA-20
 
         return new SesionValidada(sesion.Usuario, sesion);
     }

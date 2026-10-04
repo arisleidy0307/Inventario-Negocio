@@ -51,6 +51,11 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     db.Database.Migrate();
+
+    // Primer Administrador desde ADMIN_EMAIL y ADMIN_PASSWORD (sin él no se puede probar nada de Administrador).
+    var usuarios = scope.ServiceProvider.GetRequiredService<ServicioUsuarios>();
+    if (await usuarios.AsegurarAdministradorAsync(builder.Configuration["ADMIN_EMAIL"], builder.Configuration["ADMIN_PASSWORD"]))
+        app.Logger.LogInformation("Administrador inicial creado.");
 }
 
 app.UseSwagger();
