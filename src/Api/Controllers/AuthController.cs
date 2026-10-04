@@ -13,11 +13,13 @@ public class AuthController : ControllerBase
 {
     private readonly ServicioRegistro _registro;
     private readonly ServicioSesion _sesion;
+    private readonly ServicioContrasenas _contrasenas;
 
-    public AuthController(ServicioRegistro registro, ServicioSesion sesion)
+    public AuthController(ServicioRegistro registro, ServicioSesion sesion, ServicioContrasenas contrasenas)
     {
         _registro = registro;
         _sesion = sesion;
+        _contrasenas = contrasenas;
     }
 
     /// <summary>RF-CA-01, 02, 14, 15: registra un usuario inactivo y encola el correo de activación.</summary>
@@ -81,6 +83,33 @@ public class AuthController : ControllerBase
     {
         await _sesion.CerrarSesionAsync(User.SesionId());
         return Ok(new MensajeResponse("Sesión cerrada. La credencial ya no es válida."));
+    }
+
+    /// <summary>RF-CA-09 / RF-CA-10: misma respuesta exista o no el correo.</summary>
+    [HttpPost("recuperar")]
+    [RequiereOperacion(Operaciones.Recuperar)]
+    public async Task<IActionResult> Recuperar(CorreoRequest req)
+    {
+        await _contrasenas.SolicitarRecuperacionAsync(req.Correo);
+        return Ok(new MensajeResponse(ServicioContrasenas.MensajeRecuperacion));
+    }
+
+    /// <summary>RF-CA-11 / RF-CA-12: define la nueva contraseña con el código recibido.</summary>
+    [HttpPost("restablecer")]
+    [RequiereOperacion(Operaciones.Restablecer)]
+    public async Task<IActionResult> Restablecer(RestablecerRequest req)
+    {
+        await _contrasenas.RestablecerAsync(req.Codigo, req.NuevaContrasena);
+        return Ok(new MensajeResponse("Contraseña actualizada. Inicia sesión con tu nueva contraseña."));
+    }
+
+    /// <summary>RF-CA-22: cambio de la propia contraseña con sesión.</summary>
+    [HttpPost("cambiar-password")]
+    [RequiereOperacion(Operaciones.CambiarPassword)]
+    public async Task<IActionResult> CambiarPassword(CambiarPasswordRequest req)
+    {
+        await _contrasenas.CambiarAsync(User.UsuarioId(), req.ContrasenaActual, req.NuevaContrasena);
+        return Ok(new MensajeResponse("Contraseña cambiada. Tus sesiones anteriores se cerraron; inicia sesión de nuevo."));
     }
 
     private ContentResult Pagina(int estado, string titulo, string mensaje) => new()
