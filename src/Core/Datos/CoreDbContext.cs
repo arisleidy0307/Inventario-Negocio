@@ -1,3 +1,4 @@
+using Inventario.Core.Dominio;
 using Microsoft.EntityFrameworkCore;
 
 namespace Inventario.Core.Datos;
@@ -9,6 +10,10 @@ namespace Inventario.Core.Datos;
 public abstract class CoreDbContext : DbContext
 {
     protected CoreDbContext(DbContextOptions options) : base(options) { }
+
+    public DbSet<Usuario> Usuarios => Set<Usuario>();
+    public DbSet<CodigoVerificacion> CodigosVerificacion => Set<CodigoVerificacion>();
+    public DbSet<CorreoEnCola> CorreosEnCola => Set<CorreoEnCola>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
