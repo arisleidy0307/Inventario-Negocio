@@ -1,4 +1,5 @@
 using Inventario.Core.Datos;
+using Inventario.Negocio.Dominio;
 using Microsoft.EntityFrameworkCore;
 
 namespace Inventario.Datos;
@@ -7,6 +8,12 @@ namespace Inventario.Datos;
 public class AppDbContext : CoreDbContext
 {
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
+
+    public DbSet<Producto> Productos => Set<Producto>();
+    public DbSet<Proveedor> Proveedores => Set<Proveedor>();
+    public DbSet<OrdenCompra> OrdenesCompra => Set<OrdenCompra>();
+    public DbSet<DetalleOrdenCompra> DetallesOrdenCompra => Set<DetalleOrdenCompra>();
+    public DbSet<MovimientoStock> MovimientosStock => Set<MovimientoStock>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
