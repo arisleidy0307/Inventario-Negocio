@@ -14,6 +14,7 @@ public abstract class CoreDbContext : DbContext
     public DbSet<Usuario> Usuarios => Set<Usuario>();
     public DbSet<CodigoVerificacion> CodigosVerificacion => Set<CodigoVerificacion>();
     public DbSet<CorreoEnCola> CorreosEnCola => Set<CorreoEnCola>();
+    public DbSet<Sesion> Sesiones => Set<Sesion>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
