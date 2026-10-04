@@ -13,6 +13,7 @@ public static class ConfiguracionCore
         services.AddSingleton<GeneradorTokens>();
         services.AddScoped<ColaCorreos>();
         services.AddScoped<ServicioRegistro>();
+        services.AddScoped<ServicioSesion>();
         return services;
     }
 }
