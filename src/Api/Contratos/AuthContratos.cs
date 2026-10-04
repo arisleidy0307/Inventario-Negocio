@@ -21,3 +21,16 @@ public record CorreoRequest(
     string Correo);
 
 public record MensajeResponse(string Mensaje);
+
+public record LoginRequest(
+    [Required(ErrorMessage = "El correo es obligatorio.")]
+    [EmailAddress(ErrorMessage = "El correo no tiene un formato válido.")]
+    [StringLength(254)]
+    string Correo,
+    [Required(ErrorMessage = "La contraseña es obligatoria.")]
+    [StringLength(128)]
+    string Contrasena);
+
+public record UsuarioActualResponse(int Id, string Nombre, string Correo, string Rol);
+
+public record LoginResponse(string Token, string Tipo, DateTime VenceUtc, UsuarioActualResponse Usuario);

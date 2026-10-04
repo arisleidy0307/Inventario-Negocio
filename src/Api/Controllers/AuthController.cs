@@ -1,5 +1,7 @@
 using Inventario.Api.Contratos;
 using Inventario.Core.Servicios;
+using Inventario.Api.Infraestructura;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Inventario.Api.Controllers;
@@ -10,10 +12,12 @@ namespace Inventario.Api.Controllers;
 public class AuthController : ControllerBase
 {
     private readonly ServicioRegistro _registro;
+    private readonly ServicioSesion _sesion;
 
-    public AuthController(ServicioRegistro registro)
+    public AuthController(ServicioRegistro registro, ServicioSesion sesion)
     {
         _registro = registro;
+        _sesion = sesion;
     }
 
     /// <summary>RF-CA-01, 02, 14, 15: registra un usuario inactivo y encola el correo de activación.</summary>
@@ -46,6 +50,33 @@ public class AuthController : ControllerBase
     {
         await _registro.ReenviarActivacionAsync(req.Correo);
         return Ok(new MensajeResponse(ServicioRegistro.MensajeReenvio));
+    }
+
+    /// <summary>RF-CA-03 / RF-CA-19: entrega la credencial de sesión.</summary>
+    [HttpPost("login")]
+    public async Task<ActionResult<LoginResponse>> Login(LoginRequest req)
+    {
+        var s = await _sesion.IniciarSesionAsync(req.Correo, req.Contrasena);
+        return Ok(new LoginResponse(s.Token, "Bearer", s.Vence,
+            new UsuarioActualResponse(s.Usuario.Id, s.Usuario.Nombre, s.Usuario.Correo, s.Usuario.Rol.ToString())));
+    }
+
+    /// <summary>RF-CA-07: usuario autenticado y su rol.</summary>
+    [HttpGet("yo")]
+    [Authorize]
+    public async Task<ActionResult<UsuarioActualResponse>> Yo()
+    {
+        var u = await _sesion.ObtenerUsuarioAsync(User.UsuarioId());
+        return Ok(new UsuarioActualResponse(u.Id, u.Nombre, u.Correo, u.Rol.ToString()));
+    }
+
+    /// <summary>RF-CA-18: invalida la credencial usada en la petición.</summary>
+    [HttpPost("logout")]
+    [Authorize]
+    public async Task<IActionResult> Logout()
+    {
+        await _sesion.CerrarSesionAsync(User.SesionId());
+        return Ok(new MensajeResponse("Sesión cerrada. La credencial ya no es válida."));
     }
 
     private ContentResult Pagina(int estado, string titulo, string mensaje) => new()
