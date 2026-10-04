@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Inventario.EnviadorCorreos</RootNamespace>
+    <AssemblyName>Inventario.EnviadorCorreos</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Core\Core.csproj" />
+    <ProjectReference Include="..\Datos\Datos.csproj" />
+  </ItemGroup>
+</Project>

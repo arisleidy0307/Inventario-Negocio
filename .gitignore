@@ -47,3 +47,7 @@ secrets.json
 # Sistema operativo
 .DS_Store
 Thumbs.db
+# Logs y secretos locales
+*.log
+appsettings.*.json
+!appsettings.json
