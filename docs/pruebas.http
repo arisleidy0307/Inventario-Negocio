@@ -1,0 +1,102 @@
+### Peticiones de prueba (VS Code "REST Client" o Visual Studio 2022: archivo .http)
+### Cambia las variables de abajo. Los tokens se copian de las respuestas.
+
+@base = http://localhost:5001
+@correo = tu-correo@gmail.com
+@token = PEGA_AQUI_EL_TOKEN_DE_LOGIN
+@tokenAdmin = PEGA_AQUI_EL_TOKEN_DEL_ADMIN
+
+### RF-CA-01/02/14/15 · Registro (nace inactivo, encola el correo)
+POST {{base}}/api/auth/registro
+Content-Type: application/json
+
+{ "nombre": "Profesor", "correo": "{{correo}}", "contrasena": "Clave1234" }
+
+### RF-CA-14 · Contraseña de 5 caracteres -> 400
+POST {{base}}/api/auth/registro
+Content-Type: application/json
+
+{ "nombre": "Prueba", "correo": "otro@ejemplo.com", "contrasena": "ab123" }
+
+### RD-07 · Correo mal formado -> 400
+POST {{base}}/api/auth/registro
+Content-Type: application/json
+
+{ "nombre": "Prueba", "correo": "esto-no-es-correo", "contrasena": "Clave1234" }
+
+### RF-CA-17 · Reenviar activación (misma respuesta exista o no)
+POST {{base}}/api/auth/reenviar-activacion
+Content-Type: application/json
+
+{ "correo": "{{correo}}" }
+
+### RF-CA-03 · Login
+POST {{base}}/api/auth/login
+Content-Type: application/json
+
+{ "correo": "{{correo}}", "contrasena": "Clave1234" }
+
+### RF-CA-07 · Usuario autenticado
+GET {{base}}/api/auth/yo
+Authorization: Bearer {{token}}
+
+### RF-CA-18 · Cerrar sesión
+POST {{base}}/api/auth/logout
+Authorization: Bearer {{token}}
+
+### RF-CA-06 · Estándar invoca operación de Administrador -> 403
+GET {{base}}/api/usuarios
+Authorization: Bearer {{token}}
+
+### RF-CA-08 · Estándar intenta cambiar su propio rol -> 403
+PUT {{base}}/api/usuarios/2/rol
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "rol": "Administrador" }
+
+### RF-CA-21 · Admin lista usuarios (sin hashes ni tokens)
+GET {{base}}/api/usuarios
+Authorization: Bearer {{tokenAdmin}}
+
+### RF-CA-08 · Admin cambia rol
+PUT {{base}}/api/usuarios/2/rol
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{ "rol": "Administrador" }
+
+### RF-CA-20 · Admin desactiva usuario
+POST {{base}}/api/usuarios/2/desactivar
+Authorization: Bearer {{tokenAdmin}}
+
+### RF-CA-20 · Admin reactiva usuario
+POST {{base}}/api/usuarios/2/reactivar
+Authorization: Bearer {{tokenAdmin}}
+
+### RF-CA-20 · Admin intenta desactivarse a sí mismo (id 1) -> 400
+POST {{base}}/api/usuarios/1/desactivar
+Authorization: Bearer {{tokenAdmin}}
+
+### RF-CA-13 · Admin fuerza restablecimiento
+POST {{base}}/api/usuarios/2/forzar-restablecimiento
+Authorization: Bearer {{tokenAdmin}}
+
+### RF-CA-09/10 · Pedir recuperación
+POST {{base}}/api/auth/recuperar
+Content-Type: application/json
+
+{ "correo": "{{correo}}" }
+
+### RF-CA-11 · Restablecer con el código del correo
+POST {{base}}/api/auth/restablecer
+Content-Type: application/json
+
+{ "codigo": "PEGA_EL_CODIGO", "nuevaContrasena": "Nueva1234" }
+
+### RF-CA-22 · Cambiar mi contraseña con sesión
+POST {{base}}/api/auth/cambiar-password
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "contrasenaActual": "Clave1234", "nuevaContrasena": "Otra12345" }

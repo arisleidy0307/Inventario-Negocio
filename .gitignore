@@ -51,3 +51,4 @@ Thumbs.db
 *.log
 appsettings.*.json
 !appsettings.json
+scripts/variables.ps1
