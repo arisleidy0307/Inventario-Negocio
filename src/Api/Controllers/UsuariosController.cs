@@ -12,10 +12,12 @@ namespace Inventario.Api.Controllers;
 public class UsuariosController : ControllerBase
 {
     private readonly ServicioUsuarios _usuarios;
+    private readonly ServicioContrasenas _contrasenas;
 
-    public UsuariosController(ServicioUsuarios usuarios)
+    public UsuariosController(ServicioUsuarios usuarios, ServicioContrasenas contrasenas)
     {
         _usuarios = usuarios;
+        _contrasenas = contrasenas;
     }
 
     /// <summary>RF-CA-21: listado sin datos sensibles.</summary>
@@ -48,5 +50,14 @@ public class UsuariosController : ControllerBase
     {
         await _usuarios.ReactivarAsync(id);
         return Ok(new MensajeResponse("Usuario reactivado."));
+    }
+
+    /// <summary>RF-CA-13: fuerza el restablecimiento y encola el correo con el código.</summary>
+    [HttpPost("{id:int}/forzar-restablecimiento")]
+    [RequiereOperacion(Operaciones.ForzarRestablecimiento)]
+    public async Task<IActionResult> ForzarRestablecimiento(int id)
+    {
+        await _contrasenas.ForzarRestablecimientoAsync(id);
+        return Ok(new MensajeResponse("Contraseña restablecida. El usuario recibirá un código por correo para definir una nueva."));
     }
 }
