@@ -100,3 +100,59 @@ Authorization: Bearer {{token}}
 Content-Type: application/json
 
 { "contrasenaActual": "Clave1234", "nuevaContrasena": "Otra12345" }
+
+### ================= Gestión de permisos (Asignación 2) =================
+@tokenEstandar = PEGA_AQUI_EL_TOKEN_DEL_ESTANDAR
+@idSolicitud = 1
+
+### Operaciones que se pueden solicitar
+GET {{base}}/api/solicitudes-permiso/operaciones
+Authorization: Bearer {{tokenEstandar}}
+
+### RF-GP-01 · Estándar crea una solicitud (nace Pendiente)
+POST {{base}}/api/solicitudes-permiso
+Authorization: Bearer {{tokenEstandar}}
+Content-Type: application/json
+
+{ "operacion": "Usuarios.Listar", "justificacion": "Necesito consultar usuarios" }
+
+### RD-07 · Operación que no se puede solicitar -> 400
+POST {{base}}/api/solicitudes-permiso
+Authorization: Bearer {{tokenEstandar}}
+Content-Type: application/json
+
+{ "operacion": "Usuarios.CambiarRol" }
+
+### Mis solicitudes
+GET {{base}}/api/solicitudes-permiso/mias
+Authorization: Bearer {{tokenEstandar}}
+
+### RF-GP-02 · Admin consulta pendientes
+GET {{base}}/api/solicitudes-permiso/pendientes
+Authorization: Bearer {{tokenAdmin}}
+
+### RF-GP-02 · Estándar consulta pendientes -> 403
+GET {{base}}/api/solicitudes-permiso/pendientes
+Authorization: Bearer {{tokenEstandar}}
+
+### RF-GP-04 · Rechazar sin motivo -> 400
+POST {{base}}/api/solicitudes-permiso/{{idSolicitud}}/rechazar
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{ "motivo": "   " }
+
+### RF-GP-04 · Rechazar con motivo
+POST {{base}}/api/solicitudes-permiso/{{idSolicitud}}/rechazar
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{ "motivo": "No corresponde a tu puesto" }
+
+### RF-GP-03 / RF-GP-05 · Aprobar (queda Aplicada) — repetirla da 409 (RF-GP-06)
+POST {{base}}/api/solicitudes-permiso/{{idSolicitud}}/aprobar
+Authorization: Bearer {{tokenAdmin}}
+
+### RF-GP-05 · Con el permiso aplicado, el Estándar ya lista usuarios
+GET {{base}}/api/usuarios
+Authorization: Bearer {{tokenEstandar}}
