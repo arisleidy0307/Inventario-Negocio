@@ -1,4 +1,5 @@
 using Inventario.Core.Dominio;
+using Inventario.Core.Permisos;
 using Microsoft.EntityFrameworkCore;
 
 namespace Inventario.Core.Datos;
@@ -15,6 +16,8 @@ public abstract class CoreDbContext : DbContext
     public DbSet<CodigoVerificacion> CodigosVerificacion => Set<CodigoVerificacion>();
     public DbSet<CorreoEnCola> CorreosEnCola => Set<CorreoEnCola>();
     public DbSet<Sesion> Sesiones => Set<Sesion>();
+    public DbSet<SolicitudPermiso> SolicitudesPermiso => Set<SolicitudPermiso>();
+    public DbSet<PermisoUsuario> PermisosUsuario => Set<PermisoUsuario>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
