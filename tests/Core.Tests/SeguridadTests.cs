@@ -89,4 +89,30 @@ public class SeguridadTests
         Assert.False(exigencia.Permite(autenticado: false, null));
         Assert.True(exigencia.Permite(autenticado: true, Rol.Administrador));
     }
+
+    [Fact]
+    public void Politicas_EstandarSinPermisoOtorgado_NoPuedeEjecutarOperacionOtorgable() // RF-GP-05
+    {
+        // Preparar
+        var permisos = Array.Empty<string>();
+
+        // Actuar
+        var puede = PoliticasAcceso.Permite(Operaciones.ListarUsuarios, autenticado: true, Rol.Estandar, permisos);
+
+        // Verificar
+        Assert.False(puede);
+    }
+
+    [Fact]
+    public void Politicas_PermisoOtorgado_NoHabilitaOperacionesNoOtorgables() // RF-GP-05
+    {
+        // Preparar
+        var permisos = new[] { Operaciones.CambiarRol };
+
+        // Actuar
+        var puede = PoliticasAcceso.Permite(Operaciones.CambiarRol, autenticado: true, Rol.Estandar, permisos);
+
+        // Verificar
+        Assert.False(puede);
+    }
 }
