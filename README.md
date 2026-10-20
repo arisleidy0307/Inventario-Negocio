@@ -1,6 +1,6 @@
 # Stock Core: Inventario del negocio
 
-Programación III (TDS-007), ITLA 2026-C-3. **Práctica 1: Control de acceso completo.**
+Programación III (TDS-007), ITLA 2026-C-3. **Práctica 1: Control de acceso completo.** · **Asignación 2: Gestión de permisos y su primera suite de pruebas.**
 
 API en ASP.NET Core 8 + EF Core + SQL Server. Tiene registro con activación por correo, sesión con
 credencial opaca, roles, administración de usuarios, recuperación de contraseña, una cola de correos
@@ -28,14 +28,15 @@ src/
 │  ├─ Dominio/       Usuario, Rol, Sesion, CodigoVerificacion, CorreoEnCola
 │  ├─ Servicios/     ServicioRegistro, ServicioSesion, ServicioUsuarios, ServicioContrasenas, ColaCorreos
 │  ├─ Seguridad/     PoliticasAcceso, HasherContrasena, GeneradorTokens, PoliticaContrasena, ValidadorCorreo
-│  ├─ Datos/         CoreDbContext + configuraciones de las entidades del Core
+│  ├─ Permisos/      Gestión de permisos: SolicitudPermiso, TransicionesSolicitudPermiso, ServicioPermisos
+│  ├─ Datos/         CoreDbContext, RepositorioPermisosEf + configuraciones de las entidades del Core
 │  └─ Comun/         IReloj (RD-11), ExcepcionControlada
 ├─ Negocio/          Producto, Proveedor, OrdenCompra, DetalleOrdenCompra, MovimientoStock + máquina de estados
 ├─ Datos/            AppDbContext (Core + Negocio) y Migraciones
 ├─ Api/              Controladores delgados (RD-02), autenticación, filtro de roles, manejo de errores
 └─ EnviadorCorreos/  Consola independiente que envía la cola por SMTP
-tests/Core.Tests/    Pruebas xUnit del Core sin levantar la API (RD-12)
-docs/                maquina-de-estados.md, pruebas.http
+tests/Core.Tests/    Pruebas xUnit del Core sin levantar la API (RD-12); GestionPermisos/ para la pieza 2
+docs/                maquina-de-estados.md, gestion-permisos.md, pruebas.http, bitácoras
 scripts/             variables.ejemplo.ps1
 ```
 
@@ -76,7 +77,7 @@ También se pueden definir una a una: `$env:SMTP_HOST = "smtp.gmail.com"`.
 ```powershell
 git clone https://github.com/arisleidy0307/Inventario-Negocio.git
 cd Inventario-Negocio
-git checkout practica-1
+git checkout asignacion-2
 
 # Terminal 1: API (crea la BD, aplica migraciones y crea el Administrador inicial)
 . .\scripts\variables.ps1
@@ -87,10 +88,9 @@ dotnet run --project src/Api --launch-profile https
 dotnet run --project src/EnviadorCorreos
 #   o en modo continuo (revisa la cola cada 15 s):
 dotnet run --project src/EnviadorCorreos -- --continuo
-
-# Pruebas del Core
-dotnet test
 ```
+
+Las pruebas se ejecutan con un solo comando; ver la sección **Pruebas** más abajo.
 
 - Swagger: **http://localhost:5001/swagger**. Para endpoints con sesión: botón **Authorize**, pegar el `token` de `/api/auth/login`.
 - También están todas las peticiones listas en **`docs/pruebas.http`** (Visual Studio 2022 o la extensión REST Client de VS Code).
@@ -110,11 +110,18 @@ dotnet test
 | POST | `/api/auth/recuperar` | `Auth.Recuperar` | Pública |
 | POST | `/api/auth/restablecer` | `Auth.Restablecer` | Pública |
 | POST | `/api/auth/cambiar-password` | `Auth.CambiarPassword` | Sesión |
-| GET | `/api/usuarios` | `Usuarios.Listar` | Administrador |
+| GET | `/api/usuarios` | `Usuarios.Listar` | Administrador **o** permiso otorgado (Gestión de permisos) |
 | PUT | `/api/usuarios/{id}/rol` | `Usuarios.CambiarRol` | Administrador |
 | POST | `/api/usuarios/{id}/desactivar` | `Usuarios.Desactivar` | Administrador |
 | POST | `/api/usuarios/{id}/reactivar` | `Usuarios.Reactivar` | Administrador |
 | POST | `/api/usuarios/{id}/forzar-restablecimiento` | `Usuarios.ForzarRestablecimiento` | Administrador |
+| GET | `/api/solicitudes-permiso/operaciones` | `Permisos.Catalogo` | Sesión |
+| POST | `/api/solicitudes-permiso` | `Permisos.Solicitar` | Sesión |
+| GET | `/api/solicitudes-permiso/mias` | `Permisos.MisSolicitudes` | Sesión |
+| GET | `/api/solicitudes-permiso/{id}` | `Permisos.VerSolicitud` | Sesión (dueño o Administrador) |
+| GET | `/api/solicitudes-permiso/pendientes` | `Permisos.ListarPendientes` | Administrador |
+| POST | `/api/solicitudes-permiso/{id}/aprobar` | `Permisos.Aprobar` | Administrador |
+| POST | `/api/solicitudes-permiso/{id}/rechazar` | `Permisos.Rechazar` | Administrador |
 
 La exigencia de rol de **todas** las operaciones está en un solo lugar:
 **`src/Core/Seguridad/PoliticasAcceso.cs`** (RF-CA-05). El atributo `[RequiereOperacion]`
@@ -207,13 +214,102 @@ Invoke-RestMethod http://localhost:5001/api/usuarios -Headers @{ Authorization =
 | RD-09 | Detener la API (Ctrl+C) y arrancarla de nuevo | Los usuarios siguen ahí (SQL Server) |
 | RD-08 | Cualquier error inesperado (por ejemplo, detener LocalDB con `sqllocaldb stop MSSQLLocalDB` y llamar a un endpoint) | `500` con `ProblemDetails` genérico, sin traza, ruta ni SQL |
 
-## 6. Máquina de estados del negocio
+## 6. Gestión de permisos (Asignación 2)
+
+Un usuario pide permiso para ejecutar una operación que su rol no le da. Un Administrador lo aprueba o
+lo rechaza. Al aprobar, **el sistema aplica el permiso automáticamente** (RF-GP-05).
+
+- Operaciones que se pueden pedir: las marcadas como *otorgables* en `src/Core/Seguridad/PoliticasAcceso.cs`.
+  Hoy es **`Usuarios.Listar`** (`GET /api/usuarios`). La lista también sale en `GET /api/solicitudes-permiso/operaciones`.
+- Estados y transiciones, en **un solo punto** (RD-04): `src/Core/Permisos/TransicionesSolicitudPermiso.cs`.
+  Tabla completa en **[`docs/gestion-permisos.md`](docs/gestion-permisos.md)**.
+
+```
+Pendiente ──aprobar (Administrador)──▶ Aprobada ──aplicar (sistema, en la misma operación)──▶ Aplicada
+    └─────rechazar con motivo (Administrador)──▶ Rechazada
+```
+
+- Pieza: `src/Core/Permisos/` (`SolicitudPermiso`, `ServicioPermisos`, `IRepositorioPermisos`).
+  Persistencia: tablas `SolicitudesPermiso` y `PermisosUsuario` (migración `GestionPermisos`, se aplica sola al arrancar).
+- Los permisos otorgados se leen de la BD en cada petición y los aplica `[RequiereOperacion]` en el servidor (RD-06).
+
+### 6.1 Preparación para probar
+
+Se necesitan dos sesiones: un **Administrador** (el de `ADMIN_EMAIL`) y un **Estándar** (regístralo y actívalo
+con el enlace del correo, sección 5.1). En Swagger usa **Authorize** con el token de cada uno, o en PowerShell:
+
+```powershell
+$base = "http://localhost:5001"
+$adm = (Invoke-RestMethod -Method Post "$base/api/auth/login" -ContentType "application/json" -Body '{"correo":"<ADMIN_EMAIL>","contrasena":"<ADMIN_PASSWORD>"}').token
+$est = (Invoke-RestMethod -Method Post "$base/api/auth/login" -ContentType "application/json" -Body '{"correo":"<correo-estandar>","contrasena":"<su-contraseña>"}').token
+$hAdm = @{ Authorization = "Bearer $adm" }; $hEst = @{ Authorization = "Bearer $est" }
+```
+
+Para ver el código de estado de un rechazo en PowerShell 5.1, envuelve la llamada:
+`try { ... } catch { $_.Exception.Response.StatusCode.value__; $_.ErrorDetails.Message }`.
+Las mismas peticiones están en `docs/pruebas.http`.
+
+### 6.2 Cómo provocar cada criterio
+
+Síguelo en este orden: primero una solicitud que se **rechaza** (A) y luego otra que se **aprueba** (B).
+Con `Invoke-RestMethod` los ejemplos usan `$base`, `$hAdm` y `$hEst` de la sección 6.1.
+
+| Criterio | Cómo provocarlo | Resultado esperado |
+|---|---|---|
+| RF-GP-05 (antes) | Como **Estándar**: `GET /api/usuarios` | `403` |
+| RF-GP-01 | Como Estándar: `POST /api/solicitudes-permiso` con `{ "operacion": "Usuarios.Listar", "justificacion": "Necesito consultar usuarios" }` → `Invoke-RestMethod -Method Post "$base/api/solicitudes-permiso" -Headers $hEst -ContentType "application/json" -Body '{"operacion":"Usuarios.Listar","justificacion":"Necesito consultar usuarios"}'` | `201` con `"estado": "Pendiente"`. Es la **solicitud A**: anota su `id` |
+| RD-07 | Como Estándar: el mismo `POST` con `"operacion": "Usuarios.CambiarRol"` o `"operacion": ""` | `400` "La operación no existe o no se puede solicitar..." |
+| RF-GP-02 | Como **Administrador**: `GET /api/solicitudes-permiso/pendientes` | `200`, aparece A con el correo del solicitante |
+| RF-GP-02 | Como **Estándar**: `GET /api/solicitudes-permiso/pendientes` | `403` |
+| RF-GP-02 | Como Administrador crea una solicitud **propia** (mismo `POST` de RF-GP-01 con `$hAdm`; anota su `id`, es la **solicitud C**). Como Estándar: `GET /api/solicitudes-permiso/{idC}` | `403` "No puedes ver solicitudes de otros usuarios." (el Estándar solo ve las suyas en `GET /api/solicitudes-permiso/mias`) |
+| RF-GP-07 | Como Administrador: `POST /api/solicitudes-permiso/{idC}/aprobar`, y `POST /api/solicitudes-permiso/{idC}/rechazar` con `{ "motivo": "x" }` | `403` "No puedes aprobar ni rechazar tu propia solicitud." en ambos; C sigue `Pendiente` |
+| RD-06 | Como **Estándar**, construida a mano: `Invoke-RestMethod -Method Post "$base/api/solicitudes-permiso/{idA}/aprobar" -Headers $hEst` | `403`: la autorización se verifica en el servidor |
+| RF-GP-04 | Como Administrador: `POST /api/solicitudes-permiso/{idA}/rechazar` con `{ }`, `{ "motivo": "" }` o `{ "motivo": "   " }` | `400` "Para rechazar una solicitud debes escribir el motivo." A sigue `Pendiente` |
+| RF-GP-04 | Como Administrador: `POST /api/solicitudes-permiso/{idA}/rechazar` con `{ "motivo": "No corresponde a tu puesto" }` | `200`, `"estado": "Rechazada"` con `motivoRechazo`, `rechazadaPorId` y `fechaRechazo` |
+| RF-GP-06 | Como Administrador: `POST /api/solicitudes-permiso/{idA}/aprobar` | `409` "Transición no permitida: la solicitud está Rechazada y no puede pasar a Aprobada." A sigue `Rechazada`. (Rechazada → Aplicada no tiene endpoint: la cubre la prueba `Aplicar_SolicitudRechazada_SeRechazaYElEstadoSigueRechazada`) |
+| RF-GP-01 | Como Estándar: crea otra solicitud igual a la de RF-GP-01 | `201`, **solicitud B** en `Pendiente` |
+| RF-GP-03 | Como Administrador: `POST /api/solicitudes-permiso/{idB}/aprobar` | `200`, con `aprobadaPorId` (id del Administrador), `fechaAprobacion`, `"estado": "Aplicada"` y `fechaAplicacion` |
+| RF-GP-05 | En seguida, como Estándar **con el mismo token** (sin volver a iniciar sesión): `GET /api/usuarios` | `200` con el listado. `GET /api/auth/yo` muestra `"permisos": ["Usuarios.Listar"]` |
+| RF-GP-06 | Como Administrador, aprobar B **otra vez**: `POST /api/solicitudes-permiso/{idB}/aprobar` | `409` "...está Aplicada y no puede pasar a Aprobada." `GET /api/solicitudes-permiso/{idB}` sigue `Aplicada` con la misma `fechaAprobacion` |
+| RD-09 | Detener la API (Ctrl+C), arrancarla de nuevo; `GET /api/solicitudes-permiso/{idA}`, `{idB}` y `GET /api/usuarios` como Estándar (con un login nuevo si cerraste sesión) | A sigue `Rechazada`, B sigue `Aplicada` y el permiso sigue funcionando. En BD: `SELECT Id, SolicitanteId, Operacion, Estado, AprobadaPorId, FechaAprobacion, MotivoRechazo FROM SolicitudesPermiso` |
+
+## Pruebas
+
+Desde un clon limpio, en la raíz del repositorio, **un solo comando** ejecuta toda la suite:
+
+```powershell
+dotnet test
+```
+
+No hace falta base de datos, variables de entorno ni levantar la API (RD-12): la pieza se prueba con un
+repositorio en memoria (`tests/Core.Tests/GestionPermisos/Dobles.cs`) y un reloj fijo, y cada prueba crea los suyos,
+así que son independientes y pasan en cualquier orden. Cada prueba tiene las fases `// Preparar`, `// Actuar` y
+`// Verificar`, y su nombre dice qué verifica.
+
+| Archivo | Qué cubre |
+|---|---|
+| `tests/Core.Tests/GestionPermisos/ServicioPermisosTests.cs` | RF-GP-01 a 07 sobre `ServicioPermisos` |
+| `tests/Core.Tests/GestionPermisos/SolicitudPermisoTests.cs` | Entidad y tabla de transiciones (RD-04, RF-GP-06) |
+| `tests/Core.Tests/SeguridadTests.cs` | Hash, política de contraseña, tokens, roles y permisos otorgables |
+| `tests/Core.Tests/TransicionesOrdenCompraTests.cs` | Máquina de estados del negocio |
+
+Pruebas clave de la rúbrica:
+
+- **Transición válida:** `Aprobar_SolicitudPendiente_QuedaAplicadaYRegistraQuienAproboYCuando` (estado + quién + cuándo) y
+  `Rechazar_ConMotivo_QuedaRechazadaYRegistraMotivoQuienYCuando` (estado + motivo + quién + cuándo).
+- **Transición prohibida:** `Aprobar_SolicitudYaAprobada_SeRechazaYElEstadoNoCambia`,
+  `Aprobar_SolicitudRechazada_SeRechazaYSigueRechazada` y `Aplicar_SolicitudRechazada_SeRechazaYElEstadoSigueRechazada`
+  (verifican el rechazo **y** que el estado quedó igual).
+
+Para correr una sola: `dotnet test --filter "FullyQualifiedName~Aprobar_SolicitudYaAprobada"`.
+
+## 7. Máquina de estados del negocio
 
 - Estados (RF-NEG-03): **`src/Negocio/Estados/EstadoOrdenCompra.cs`**. Son 4: Borrador, Emitida, Recibida y Cancelada.
 - Transiciones (RD-04): **`src/Negocio/Estados/TransicionesOrdenCompra.cs`**, método `Puede(desde, hacia)`. Prohibida explícita: Recibida → Cancelada. Terminales: Recibida y Cancelada.
 - Tabla completa (desde, hacia, quién, condición): **[`docs/maquina-de-estados.md`](docs/maquina-de-estados.md)**.
 
-## 7. Flujo de trabajo
+## 8. Flujo de trabajo
 
 Cada funcionalidad se hizo en su propia rama y se fusionó a `main` por pull request con la plantilla
 de `.github/PULL_REQUEST_TEMPLATE.md` (Qué cambia, Por qué, Cómo probarlo, Qué NO incluye):
@@ -227,5 +323,9 @@ de `.github/PULL_REQUEST_TEMPLATE.md` (Qué cambia, Por qué, Cómo probarlo, Qu
 | 4 | `feat/recuperacion-password` | RF-CA-09 a 13, 22 |
 | 5 | `feat/maquina-estados-negocio` | RF-NEG-01, 03, 04, 05, RD-04 |
 | 6 | `docs/readme-final` | README, pruebas, RD-12 |
+| 7 | `feat/gestion-permisos` | RF-GP-01 a 07, RD-04, RD-06, RD-07, RD-09 |
+| 8 | `test/gestion-permisos` | Suite de pruebas de Gestión de permisos (RD-12) |
+| 9 | `docs/asignacion-2` | README de la pieza, sección Pruebas y bitácora |
 
-Entrega: etiqueta **`practica-1`**.
+Entregas: etiqueta **`practica-1`** (Práctica 1) y **`asignacion-2`** (Asignación 2).
+Bitácoras con el agente: `docs/bitacora-asignacion-1.md` y `docs/bitacora-asignacion-2.md`.
