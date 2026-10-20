@@ -73,7 +73,8 @@ public class AuthController : ControllerBase
     public async Task<ActionResult<UsuarioActualResponse>> Yo()
     {
         var u = await _sesion.ObtenerUsuarioAsync(User.UsuarioId());
-        return Ok(new UsuarioActualResponse(u.Id, u.Nombre, u.Correo, u.Rol.ToString()));
+        var permisos = User.FindAll(AutenticacionSesion.ClaimPermiso).Select(c => c.Value).ToList();
+        return Ok(new UsuarioActualResponse(u.Id, u.Nombre, u.Correo, u.Rol.ToString(), permisos));
     }
 
     /// <summary>RF-CA-18: invalida la credencial usada en la petición.</summary>

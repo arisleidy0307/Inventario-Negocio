@@ -209,6 +209,98 @@ namespace Inventario.Datos.Migraciones
                     b.ToTable("Usuarios", (string)null);
                 });
 
+            modelBuilder.Entity("Inventario.Core.Permisos.PermisoUsuario", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("FechaOtorgado")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Operacion")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("SolicitudPermisoId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("UsuarioId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SolicitudPermisoId");
+
+                    b.HasIndex("UsuarioId", "Operacion")
+                        .IsUnique();
+
+                    b.ToTable("PermisosUsuario", (string)null);
+                });
+
+            modelBuilder.Entity("Inventario.Core.Permisos.SolicitudPermiso", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int?>("AprobadaPorId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Estado")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTime?>("FechaAplicacion")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("FechaAprobacion")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("FechaRechazo")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("FechaSolicitud")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Justificacion")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("MotivoRechazo")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Operacion")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int?>("RechazadaPorId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SolicitanteId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AprobadaPorId");
+
+                    b.HasIndex("Estado");
+
+                    b.HasIndex("RechazadaPorId");
+
+                    b.HasIndex("SolicitanteId");
+
+                    b.ToTable("SolicitudesPermiso", (string)null);
+                });
+
             modelBuilder.Entity("Inventario.Negocio.Dominio.DetalleOrdenCompra", b =>
                 {
                     b.Property<int>("Id")
@@ -394,6 +486,44 @@ namespace Inventario.Datos.Migraciones
                         .IsRequired();
 
                     b.Navigation("Usuario");
+                });
+
+            modelBuilder.Entity("Inventario.Core.Permisos.PermisoUsuario", b =>
+                {
+                    b.HasOne("Inventario.Core.Permisos.SolicitudPermiso", null)
+                        .WithMany()
+                        .HasForeignKey("SolicitudPermisoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Inventario.Core.Dominio.Usuario", "Usuario")
+                        .WithMany()
+                        .HasForeignKey("UsuarioId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Usuario");
+                });
+
+            modelBuilder.Entity("Inventario.Core.Permisos.SolicitudPermiso", b =>
+                {
+                    b.HasOne("Inventario.Core.Dominio.Usuario", null)
+                        .WithMany()
+                        .HasForeignKey("AprobadaPorId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Inventario.Core.Dominio.Usuario", null)
+                        .WithMany()
+                        .HasForeignKey("RechazadaPorId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Inventario.Core.Dominio.Usuario", "Solicitante")
+                        .WithMany()
+                        .HasForeignKey("SolicitanteId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Solicitante");
                 });
 
             modelBuilder.Entity("Inventario.Negocio.Dominio.DetalleOrdenCompra", b =>

@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using System.Text.Encodings.Web;
+using Inventario.Core.Permisos;
 using Inventario.Core.Servicios;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Mvc;
@@ -15,13 +16,16 @@ public class AutenticacionSesion : AuthenticationHandler<AuthenticationSchemeOpt
 {
     public const string Esquema = "Bearer";
     public const string ClaimSesion = "sesion_id";
+    public const string ClaimPermiso = "permiso";
 
     private readonly ServicioSesion _sesiones;
+    private readonly IRepositorioPermisos _permisos;
 
     public AutenticacionSesion(IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger,
-        UrlEncoder encoder, ServicioSesion sesiones) : base(options, logger, encoder)
+        UrlEncoder encoder, ServicioSesion sesiones, IRepositorioPermisos permisos) : base(options, logger, encoder)
     {
         _sesiones = sesiones;
+        _permisos = permisos;
     }
 
     protected override async Task<AuthenticateResult> HandleAuthenticateAsync()
@@ -35,13 +39,16 @@ public class AutenticacionSesion : AuthenticationHandler<AuthenticationSchemeOpt
         if (validada is null)
             return AuthenticateResult.Fail("Sesión no válida.");
 
-        var claims = new[]
+        var claims = new List<Claim>
         {
-            new Claim(ClaimTypes.NameIdentifier, validada.Usuario.Id.ToString()),
-            new Claim(ClaimTypes.Email, validada.Usuario.Correo),
-            new Claim(ClaimTypes.Role, validada.Usuario.Rol.ToString()),
-            new Claim(ClaimSesion, validada.Sesion.Id.ToString())
+            new(ClaimTypes.NameIdentifier, validada.Usuario.Id.ToString()),
+            new(ClaimTypes.Email, validada.Usuario.Correo),
+            new(ClaimTypes.Role, validada.Usuario.Rol.ToString()),
+            new(ClaimSesion, validada.Sesion.Id.ToString())
         };
+        // Permisos otorgados por solicitudes aprobadas, leídos de la BD en cada petición (RF-GP-05).
+        foreach (var operacion in await _permisos.PermisosDeUsuarioAsync(validada.Usuario.Id))
+            claims.Add(new Claim(ClaimPermiso, operacion));
         var identidad = new ClaimsIdentity(claims, Esquema);
         return AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(identidad), Esquema));
     }
@@ -71,4 +78,7 @@ public static class ExtensionesUsuario
 {
     public static int UsuarioId(this ClaimsPrincipal u) => int.Parse(u.FindFirstValue(ClaimTypes.NameIdentifier)!);
     public static int SesionId(this ClaimsPrincipal u) => int.Parse(u.FindFirstValue(AutenticacionSesion.ClaimSesion)!);
+
+    public static Inventario.Core.Dominio.Rol Rol(this ClaimsPrincipal u) =>
+        Enum.Parse<Inventario.Core.Dominio.Rol>(u.FindFirstValue(ClaimTypes.Role)!);
 }

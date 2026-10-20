@@ -31,7 +31,9 @@ public record LoginRequest(
     [StringLength(128)]
     string Contrasena);
 
-public record UsuarioActualResponse(int Id, string Nombre, string Correo, string Rol);
+/// <summary>Permisos: operaciones otorgadas por solicitudes aprobadas (Gestión de permisos).</summary>
+public record UsuarioActualResponse(int Id, string Nombre, string Correo, string Rol,
+    IReadOnlyList<string>? Permisos = null);
 
 public record LoginResponse(string Token, string Tipo, DateTime VenceUtc, UsuarioActualResponse Usuario);
 

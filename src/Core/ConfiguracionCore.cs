@@ -1,3 +1,5 @@
+using Inventario.Core.Datos;
+using Inventario.Core.Permisos;
 using Inventario.Core.Seguridad;
 using Inventario.Core.Servicios;
 using Microsoft.Extensions.DependencyInjection;
@@ -16,6 +18,8 @@ public static class ConfiguracionCore
         services.AddScoped<ServicioSesion>();
         services.AddScoped<ServicioUsuarios>();
         services.AddScoped<ServicioContrasenas>();
+        services.AddScoped<IRepositorioPermisos, RepositorioPermisosEf>();
+        services.AddScoped<ServicioPermisos>();
         return services;
     }
 }

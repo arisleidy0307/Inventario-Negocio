@@ -1,4 +1,5 @@
 using Inventario.Core.Dominio;
+using Inventario.Core.Permisos;
 using Microsoft.EntityFrameworkCore;
 
 namespace Inventario.Core.Datos;
@@ -15,6 +16,16 @@ public abstract class CoreDbContext : DbContext
     public DbSet<CodigoVerificacion> CodigosVerificacion => Set<CodigoVerificacion>();
     public DbSet<CorreoEnCola> CorreosEnCola => Set<CorreoEnCola>();
     public DbSet<Sesion> Sesiones => Set<Sesion>();
+    public DbSet<SolicitudPermiso> SolicitudesPermiso => Set<SolicitudPermiso>();
+    public DbSet<PermisoUsuario> PermisosUsuario => Set<PermisoUsuario>();
+
+    /// <summary>RD-11: toda fecha leída de la BD vuelve marcada como UTC.</summary>
+    protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
+    {
+        base.ConfigureConventions(configurationBuilder);
+        configurationBuilder.Properties<DateTime>().HaveConversion<ConvertidorFechaUtc>();
+        configurationBuilder.Properties<DateTime?>().HaveConversion<ConvertidorFechaUtc>();
+    }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

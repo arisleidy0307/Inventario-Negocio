@@ -20,14 +20,27 @@ public static class Operaciones
     public const string Desactivar = "Usuarios.Desactivar";
     public const string Reactivar = "Usuarios.Reactivar";
     public const string ForzarRestablecimiento = "Usuarios.ForzarRestablecimiento";
+
+    public const string CatalogoPermisos = "Permisos.Catalogo";
+    public const string SolicitarPermiso = "Permisos.Solicitar";
+    public const string MisSolicitudes = "Permisos.MisSolicitudes";
+    public const string VerSolicitud = "Permisos.VerSolicitud";
+    public const string ListarSolicitudesPendientes = "Permisos.ListarPendientes";
+    public const string AprobarSolicitud = "Permisos.Aprobar";
+    public const string RechazarSolicitud = "Permisos.Rechazar";
 }
 
-/// <summary>Qué exige una operación: nada (pública), una sesión válida, o una sesión con un rol concreto.</summary>
-public sealed record Exigencia(bool RequiereSesion, Rol? RolRequerido)
+/// <summary>
+/// Qué exige una operación: nada (pública), una sesión válida, o una sesión con un rol concreto.
+/// Si es <c>Otorgable</c>, un usuario sin ese rol también puede ejecutarla cuando tiene el permiso
+/// otorgado por una solicitud aprobada (Gestión de permisos, RF-GP-05).
+/// </summary>
+public sealed record Exigencia(bool RequiereSesion, Rol? RolRequerido, bool Otorgable = false)
 {
     public static readonly Exigencia Publica = new(false, null);
     public static readonly Exigencia Autenticado = new(true, null);
     public static Exigencia SoloRol(Rol rol) => new(true, rol);
+    public static Exigencia RolUPermisoOtorgado(Rol rol) => new(true, rol, Otorgable: true);
 
     public bool Permite(bool autenticado, Rol? rolUsuario) =>
         !RequiereSesion || (autenticado && (RolRequerido is null || rolUsuario == RolRequerido));
@@ -54,12 +67,41 @@ public static class PoliticasAcceso
         [Operaciones.Restablecer]        = Exigencia.Publica,
         [Operaciones.CambiarPassword]    = Exigencia.Autenticado,
 
-        [Operaciones.ListarUsuarios]     = Administrador,
+        // Otorgable: un Estándar puede pedir este permiso con una solicitud (Gestión de permisos).
+        [Operaciones.ListarUsuarios]     = Exigencia.RolUPermisoOtorgado(Rol.Administrador),
         [Operaciones.CambiarRol]         = Administrador,
         [Operaciones.Desactivar]         = Administrador,
         [Operaciones.Reactivar]          = Administrador,
         [Operaciones.ForzarRestablecimiento] = Administrador,
+
+        // Gestión de permisos (RF-GP-01 a 07)
+        [Operaciones.CatalogoPermisos]            = Exigencia.Autenticado,
+        [Operaciones.SolicitarPermiso]            = Exigencia.Autenticado,
+        [Operaciones.MisSolicitudes]              = Exigencia.Autenticado,
+        [Operaciones.VerSolicitud]                = Exigencia.Autenticado, // el servicio exige ser dueño o Administrador
+        [Operaciones.ListarSolicitudesPendientes] = Administrador,
+        [Operaciones.AprobarSolicitud]            = Administrador,
+        [Operaciones.RechazarSolicitud]           = Administrador,
     };
+
+    /// <summary>Operaciones que se pueden pedir con una solicitud de permiso.</summary>
+    public static IReadOnlyList<string> OperacionesOtorgables { get; } =
+        PorOperacion.Where(p => p.Value.Otorgable).Select(p => p.Key).OrderBy(k => k).ToList();
+
+    public static bool EsOtorgable(string? operacion) =>
+        operacion is not null && PorOperacion.TryGetValue(operacion, out var e) && e.Otorgable;
+
+    /// <summary>
+    /// Decide si un usuario puede ejecutar una operación: por su rol o, si la operación es otorgable,
+    /// porque tiene el permiso aplicado tras una solicitud aprobada.
+    /// </summary>
+    public static bool Permite(string operacion, bool autenticado, Rol? rol, IEnumerable<string>? permisosOtorgados)
+    {
+        var exigencia = Obtener(operacion);
+        if (exigencia.Permite(autenticado, rol))
+            return true;
+        return autenticado && exigencia.Otorgable && (permisosOtorgados?.Contains(operacion) ?? false);
+    }
 
     public static Exigencia Obtener(string operacion) =>
         PorOperacion.TryGetValue(operacion, out var exigencia)
