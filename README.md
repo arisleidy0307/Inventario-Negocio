@@ -238,6 +238,23 @@ Secuencia ejecutada y resultado observado:
    recibido en el buzón real restableció la contraseña (`200`). Reutilizarlo dio `400`, la contraseña vieja dio `401`,
    la nueva `200`, y la credencial de sesión emitida antes del cambio dio `401`.
 
+6. **SMTP caído (RF-NOT-08):** con la API corriendo se registró otro usuario → `201` (la API nunca toca el SMTP) y
+   se ejecutó el enviador apuntando a un servidor inexistente (`$env:SMTP_HOST = "smtp.invalido.local"`):
+   ```
+   [16:21:24] Revisando la cola de correos...
+     [error]   #3 -> ...+smtpcaido@gmail.com: Failure sending mail.
+   [16:21:25] Enviados: 0. Con error (siguen pendientes): 1.
+   ```
+   En la base (`SELECT Id, Estado, Intentos, FechaEnvio, UltimoError FROM CorreosEnCola`) el correo #3 quedó
+   `Pendiente`, `Intentos = 1`, `FechaEnvio` en `NULL` y `UltimoError = Failure sending mail.`; los #1 y #2 seguían
+   `Enviado`.
+7. **Recuperación del servidor:** con el `SMTP_HOST` real de nuevo, el mismo correo pendiente salió:
+   ```
+   [16:23:06] Revisando la cola de correos...
+     [enviado] #3 -> ...+smtpcaido@gmail.com: Activa tu cuenta - Inventario
+   [16:23:09] Enviados: 1. Con error (siguen pendientes): 0.
+   ```
+
 Para repetirla: define las variables `SMTP_*` de la sección 3 con una cuenta propia (en Gmail se necesita la
 verificación en 2 pasos y una contraseña de aplicación en https://myaccount.google.com/apppasswords) y sigue las
 filas RF-NOT-09 y RF-NOT-12 de esta sección.
