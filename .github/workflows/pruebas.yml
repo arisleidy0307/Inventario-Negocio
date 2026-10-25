@@ -1,0 +1,21 @@
+# Ejecuta la suite (el mismo comando de la sección «Pruebas» del README) en un clon limpio,
+# en cada push de rama o etiqueta y en cada pull request.
+name: Pruebas
+
+on:
+  push:
+    branches: ['**']
+    tags: ['**']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  pruebas:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: dotnet test
+        run: dotnet test --logger "console;verbosity=normal"
