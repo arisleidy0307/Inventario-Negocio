@@ -80,7 +80,7 @@ public static class PoliticasAcceso
         [Operaciones.MisSolicitudes]              = Exigencia.Autenticado,
         [Operaciones.VerSolicitud]                = Exigencia.Autenticado, // el servicio exige ser dueño o Administrador
         [Operaciones.ListarSolicitudesPendientes] = Administrador,
-        [Operaciones.AprobarSolicitud]            = Administrador,
+        [Operaciones.AprobarSolicitud]            = Exigencia.Autenticado,
         [Operaciones.RechazarSolicitud]           = Administrador,
     };
 
