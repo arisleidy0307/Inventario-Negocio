@@ -207,6 +207,41 @@ Invoke-RestMethod http://localhost:5001/api/usuarios -Headers @{ Authorization =
 | RF-NOT-12 | Ejecutar el Enviador **otra vez** | "Enviados: 0". No hay duplicados: cada fila se reclama con un `UPDATE ... WHERE Estado = 'Pendiente'` antes de enviarla. |
 | RF-NOT-13 | `git grep -i -E "smtp_password|password=" -- . ':!README.md' ':!scripts/variables.ejemplo.ps1'` | Las credenciales SMTP solo se leen de variables de entorno |
 
+#### Constancia: prueba del enviador contra un SMTP real
+
+El enviador se probó contra un servidor SMTP real (Gmail), no contra un simulador. Prueba del **25 de octubre de
+2026**, desde la etiqueta `practica-2`, con la API arrancada sobre una base de datos nueva (`InventarioP2Revision`).
+
+| Dato | Valor |
+|---|---|
+| Servidor | `SMTP_HOST=smtp.gmail.com`, `SMTP_PORT=587`, STARTTLS (`SMTP_SSL` sin definir, por defecto `true`) |
+| Autenticación | Cuenta Gmail del proyecto con **contraseña de aplicación** de Google, leída de `SMTP_USER` / `SMTP_PASSWORD` (nunca en el repositorio) |
+| Destinatario | Un buzón Gmail real de la autora (alias `+p2`) |
+
+Secuencia ejecutada y resultado observado:
+
+1. `POST /api/auth/registro` de un usuario nuevo → `201`; el correo queda `Pendiente` en `CorreosEnCola`.
+2. `dotnet run --project src/EnviadorCorreos`:
+   ```
+   [16:00:51] Revisando la cola de correos...
+     [enviado] #1 -> ...+p2@gmail.com: Activa tu cuenta - Inventario
+   [16:00:56] Enviados: 1. Con error (siguen pendientes): 0.
+   ```
+3. El correo **«Activa tu cuenta - Inventario»** llegó al buzón real. Al abrir el enlace: «Cuenta activada».
+   Al abrirlo por segunda vez: rechazo (enlace ya usado).
+4. Segunda ejecución del enviador (RF-NOT-12, sin duplicados):
+   ```
+   [16:03:56] Revisando la cola de correos...
+   [16:03:57] Enviados: 0. Con error (siguen pendientes): 0.
+   ```
+5. `POST /api/auth/recuperar` → el enviador mandó **«Recupera tu contraseña - Inventario»** (`[enviado] #2`). El código
+   recibido en el buzón real restableció la contraseña (`200`). Reutilizarlo dio `400`, la contraseña vieja dio `401`,
+   la nueva `200`, y la credencial de sesión emitida antes del cambio dio `401`.
+
+Para repetirla: define las variables `SMTP_*` de la sección 3 con una cuenta propia (en Gmail se necesita la
+verificación en 2 pasos y una contraseña de aplicación en https://myaccount.google.com/apppasswords) y sigue las
+filas RF-NOT-09 y RF-NOT-12 de esta sección.
+
 ### 5.6 Persistencia y errores
 
 | Criterio | Cómo provocarlo | Resultado esperado |
