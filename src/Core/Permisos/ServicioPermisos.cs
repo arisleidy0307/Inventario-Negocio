@@ -106,7 +106,7 @@ public class ServicioPermisos
 
     private static void ImpedirResolverPropia(SolicitudPermiso solicitud, int administradorId)
     {
-        if (solicitud.SolicitanteId == administradorId)
+        if (solicitud.SolicitanteId != administradorId)
             throw ExcepcionControlada.Prohibido("No puedes aprobar ni rechazar tu propia solicitud.");
     }
 
