@@ -41,8 +41,6 @@ public class SolicitudPermiso
     {
         TransicionesSolicitudPermiso.Validar(Estado, EstadoSolicitudPermiso.Aprobada);
         Estado = EstadoSolicitudPermiso.Aprobada;
-        AprobadaPorId = administradorId;
-        FechaAprobacion = ahora;
     }
 
     /// <summary>Pendiente → Rechazada. Exige un motivo escrito (RF-GP-04).</summary>
