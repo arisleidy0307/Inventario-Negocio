@@ -28,6 +28,7 @@ public class ServicioPermisosTests
 
     // ---------- RF-GP-01 ----------
 
+    [Trait("Requisito", "RF-GP-01")]
     [Fact]
     public async Task CrearSolicitud_UsuarioEstandar_NaceEnEstadoPendiente()
     {
@@ -41,6 +42,7 @@ public class ServicioPermisosTests
         Assert.Equal(EstadoSolicitudPermiso.Pendiente, solicitud.Estado);
     }
 
+    [Trait("Requisito", "RF-GP-01")]
     [Fact]
     public async Task CrearSolicitud_OperacionQueNoSePuedeSolicitar_SeRechazaConError400()
     {
@@ -56,6 +58,7 @@ public class ServicioPermisosTests
         Assert.Empty(repo.Solicitudes);
     }
 
+    [Trait("Requisito", "RF-GP-01")]
     [Fact]
     public async Task CrearSolicitud_YaHayUnaPendienteParaLaMismaOperacion_SeRechazaConError409()
     {
@@ -74,6 +77,7 @@ public class ServicioPermisosTests
 
     // ---------- RF-GP-02 ----------
 
+    [Trait("Requisito", "RF-GP-02")]
     [Fact]
     public async Task ObtenerSolicitud_EstandarPideLaDeOtroUsuario_SeRechazaConError403()
     {
@@ -89,6 +93,7 @@ public class ServicioPermisosTests
         Assert.Equal(403, error.CodigoEstado);
     }
 
+    [Trait("Requisito", "RF-GP-02")]
     [Fact]
     public async Task Pendientes_HaySolicitudesResueltas_SoloDevuelveLasPendientes()
     {
@@ -107,6 +112,7 @@ public class ServicioPermisosTests
 
     // ---------- RF-GP-03 / RF-GP-05: transición válida ----------
 
+    [Trait("Requisito", "RF-GP-03")]
     [Fact]
     public async Task Aprobar_SolicitudPendiente_QuedaAplicadaYRegistraQuienAproboYCuando()
     {
@@ -123,6 +129,7 @@ public class ServicioPermisosTests
         Assert.Equal(Ahora, resultado.FechaAprobacion);
     }
 
+    [Trait("Requisito", "RF-GP-05")]
     [Fact]
     public async Task Aprobar_SolicitudPendiente_ElSolicitantePuedeEjecutarLaOperacionSinPasoManual()
     {
@@ -140,6 +147,7 @@ public class ServicioPermisosTests
 
     // ---------- RF-GP-04: transición válida con motivo ----------
 
+    [Trait("Requisito", "RF-GP-04")]
     [Fact]
     public async Task Rechazar_ConMotivo_QuedaRechazadaYRegistraMotivoQuienYCuando()
     {
@@ -157,6 +165,7 @@ public class ServicioPermisosTests
         Assert.Equal(Ahora, resultado.FechaRechazo);
     }
 
+    [Trait("Requisito", "RF-GP-04")]
     [Theory]
     [InlineData((string?)null)]
     [InlineData("")]
@@ -179,6 +188,7 @@ public class ServicioPermisosTests
 
     // ---------- RF-GP-06: transiciones prohibidas ----------
 
+    [Trait("Requisito", "RF-GP-06")]
     [Fact]
     public async Task Aprobar_SolicitudYaAprobada_SeRechazaYElEstadoNoCambia()
     {
@@ -198,6 +208,7 @@ public class ServicioPermisosTests
         Assert.Single(repo.Permisos);
     }
 
+    [Trait("Requisito", "RF-GP-06")]
     [Fact]
     public async Task Aprobar_SolicitudRechazada_SeRechazaYSigueRechazada()
     {
@@ -216,6 +227,7 @@ public class ServicioPermisosTests
         Assert.Empty(repo.Permisos);
     }
 
+    [Trait("Requisito", "RF-GP-06")]
     [Fact]
     public async Task Rechazar_SolicitudYaAplicada_SeRechazaYSigueAplicada()
     {
@@ -236,6 +248,7 @@ public class ServicioPermisosTests
 
     // ---------- RF-GP-07 ----------
 
+    [Trait("Requisito", "RF-GP-07")]
     [Fact]
     public async Task Aprobar_AdministradorSuPropiaSolicitud_SeRechazaYSiguePendiente()
     {
@@ -252,6 +265,7 @@ public class ServicioPermisosTests
         Assert.Empty(repo.Permisos);
     }
 
+    [Trait("Requisito", "RF-GP-07")]
     [Fact]
     public async Task Rechazar_AdministradorSuPropiaSolicitud_SeRechazaYSiguePendiente()
     {
@@ -266,5 +280,52 @@ public class ServicioPermisosTests
         // Verificar
         Assert.Equal(403, error.CodigoEstado);
         Assert.Equal(EstadoSolicitudPermiso.Pendiente, propia.Estado);
+    }
+
+    [Trait("Requisito", "RF-GP-05")]
+    [Fact]
+    public async Task Aprobar_SolicitudPendiente_LlegaAAplicadaConFechaDeAplicacion()
+    {
+        // Preparar
+        var (servicio, _, _) = Crear();
+        var solicitud = await servicio.CrearSolicitudAsync(EstandarId, OperacionOtorgable, null);
+
+        // Actuar
+        await servicio.AprobarAsync(solicitud.Id, AdminId);
+
+        // Verificar
+        Assert.Equal(EstadoSolicitudPermiso.Aplicada, solicitud.Estado);
+        Assert.Equal(Ahora, solicitud.FechaAplicacion);
+    }
+
+    [Trait("Requisito", "RF-GP-02")]
+    [Fact]
+    public async Task SolicitudesDeUsuario_DevuelveSoloLasDeEseUsuario()
+    {
+        // Preparar
+        var (servicio, _, _) = Crear();
+        var propia = await servicio.CrearSolicitudAsync(EstandarId, OperacionOtorgable, null);
+        await servicio.CrearSolicitudAsync(OtroEstandarId, OperacionOtorgable, null);
+
+        // Actuar
+        var resultado = await servicio.DeUsuarioAsync(EstandarId);
+
+        // Verificar
+        Assert.Equal(new[] { propia.Id }, resultado.Select(s => s.Id).ToArray());
+    }
+
+    [Trait("Requisito", "RF-GP-02")]
+    [Fact]
+    public async Task ObtenerSolicitud_EstandarPideLaSuya_LaDevuelve()
+    {
+        // Preparar
+        var (servicio, _, _) = Crear();
+        var propia = await servicio.CrearSolicitudAsync(EstandarId, OperacionOtorgable, null);
+
+        // Actuar
+        var resultado = await servicio.ObtenerAsync(propia.Id, EstandarId, Rol.Estandar);
+
+        // Verificar
+        Assert.Equal(propia.Id, resultado.Id);
     }
 }
