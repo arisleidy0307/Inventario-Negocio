@@ -1,6 +1,6 @@
 # Stock Core: Inventario del negocio
 
-Programación III (TDS-007), ITLA 2026-C-3. **Práctica 1: Control de acceso completo.** · **Asignación 2: Gestión de permisos y su primera suite de pruebas.**
+Programación III (TDS-007), ITLA 2026-C-3. **Práctica 1: Control de acceso completo.** · **Asignación 2: Gestión de permisos y su primera suite de pruebas.** · **Práctica 2: una suite que detecta defectos.**
 
 API en ASP.NET Core 8 + EF Core + SQL Server. Tiene registro con activación por correo, sesión con
 credencial opaca, roles, administración de usuarios, recuperación de contraseña, una cola de correos
@@ -77,7 +77,7 @@ También se pueden definir una a una: `$env:SMTP_HOST = "smtp.gmail.com"`.
 ```powershell
 git clone https://github.com/arisleidy0307/Inventario-Negocio.git
 cd Inventario-Negocio
-git checkout asignacion-2
+git checkout practica-2
 
 # Terminal 1: API (crea la BD, aplica migraciones y crea el Administrador inicial)
 . .\scripts\variables.ps1
@@ -176,7 +176,7 @@ Invoke-RestMethod http://localhost:5001/api/usuarios -Headers @{ Authorization =
 |---|---|---|
 | RF-CA-04 | `SELECT Correo, Rol FROM Usuarios` | Cada usuario tiene exactamente un rol: `Administrador` o `Estandar`. Los registrados nacen `Estandar`. |
 | RF-CA-05 | Abrir `src/Core/Seguridad/PoliticasAcceso.cs` | Diccionario único operación → exigencia |
-| RF-CA-06 / RD-06 | Con token de **Estándar**: `GET /api/usuarios` con `Invoke-RestMethod` (sección 5) | `403` "No tienes permiso para realizar esta operación." |
+| RF-CA-06 / RD-06 | Con token de **Estándar**: `GET /api/usuarios` con `Invoke-RestMethod` (sección 5), o `POST /api/usuarios/1/desactivar` | `403` "No tienes permiso para realizar esta operación." (Nota: desde la Asignación 2, `GET /api/usuarios` es otorgable; si a ese Estándar se le aprobó una solicitud de `Usuarios.Listar`, usa `POST /api/usuarios/1/desactivar`, que nunca es otorgable.) |
 | RF-CA-08 | Con token de Estándar: `PUT /api/usuarios/{suId}/rol` con `{ "rol": "Administrador" }` | `403`. Un Estándar no cambia ningún rol, ni el propio. |
 | RF-CA-21 | Con token de Administrador: `GET /api/usuarios` | Lista con id, nombre, correo, rol y estado. **Sin** hashes, sales ni tokens. |
 | RF-CA-08 | Administrador: `PUT /api/usuarios/{id}/rol` con `{ "rol": "Administrador" }` o `"Estandar"` | `200`. El cambio se refleja en `/api/auth/yo` del usuario. |
@@ -281,27 +281,59 @@ Desde un clon limpio, en la raíz del repositorio, **un solo comando** ejecuta t
 dotnet test
 ```
 
-No hace falta base de datos, variables de entorno ni levantar la API (RD-12): la pieza se prueba con un
-repositorio en memoria (`tests/Core.Tests/GestionPermisos/Dobles.cs`) y un reloj fijo, y cada prueba crea los suyos,
-así que son independientes y pasan en cualquier orden. Cada prueba tiene las fases `// Preparar`, `// Actuar` y
-`// Verificar`, y su nombre dice qué verifica.
+Resultado esperado en `practica-2`: `total: 76; failed: 0`. No hace falta base de datos, variables de entorno ni
+levantar la API (RD-12). Gestión de permisos se prueba con un repositorio en memoria y un reloj fijo
+(`tests/Core.Tests/GestionPermisos/Dobles.cs`). Cada prueba crea los suyos, así que son independientes y pasan
+en cualquier orden. Cada prueba tiene las fases `// Preparar`, `// Actuar` y `// Verificar`, su nombre dice qué
+verifica y lleva el atributo `[Trait("Requisito", "RF-GP-0X")]` con el requisito que cubre.
 
-| Archivo | Qué cubre |
-|---|---|
-| `tests/Core.Tests/GestionPermisos/ServicioPermisosTests.cs` | RF-GP-01 a 07 sobre `ServicioPermisos` |
-| `tests/Core.Tests/GestionPermisos/SolicitudPermisoTests.cs` | Entidad y tabla de transiciones (RD-04, RF-GP-06) |
-| `tests/Core.Tests/SeguridadTests.cs` | Hash, política de contraseña, tokens, roles y permisos otorgables |
-| `tests/Core.Tests/TransicionesOrdenCompraTests.cs` | Máquina de estados del negocio |
+La misma suite corre en GitHub Actions en cada push de rama o etiqueta (`.github/workflows/pruebas.yml`).
 
-Pruebas clave de la rúbrica:
+Para correr solo las pruebas de un requisito: `dotnet test --filter "Requisito=RF-GP-03"`.
+Para correr una prueba: `dotnet test --filter "FullyQualifiedName~Aprobar_SolicitudYaAprobada"`.
 
-- **Transición válida:** `Aprobar_SolicitudPendiente_QuedaAplicadaYRegistraQuienAproboYCuando` (estado + quién + cuándo) y
-  `Rechazar_ConMotivo_QuedaRechazadaYRegistraMotivoQuienYCuando` (estado + motivo + quién + cuándo).
-- **Transición prohibida:** `Aprobar_SolicitudYaAprobada_SeRechazaYElEstadoNoCambia`,
-  `Aprobar_SolicitudRechazada_SeRechazaYSigueRechazada` y `Aplicar_SolicitudRechazada_SeRechazaYElEstadoSigueRechazada`
-  (verifican el rechazo **y** que el estado quedó igual).
+### Pruebas por requisito de Gestión de permisos
 
-Para correr una sola: `dotnet test --filter "FullyQualifiedName~Aprobar_SolicitudYaAprobada"`.
+Archivos en `tests/Core.Tests/GestionPermisos/`: `ServicioPermisosTests.cs` (servicio), `SolicitudPermisoTests.cs`
+(entidad y tabla de transiciones) y `AutorizacionPermisosTests.cs` (quién puede ejecutar cada operación).
+
+| Requisito | Qué verifica la suite | Pruebas |
+|---|---|---|
+| RF-GP-01 | La solicitud nace en Pendiente; el Estándar puede solicitar | `CrearSolicitud_UsuarioEstandar_NaceEnEstadoPendiente`, `SolicitarPermiso_UsuarioEstandar_EstaPermitido`, `CrearSolicitud_OperacionQueNoSePuedeSolicitar_SeRechazaConError400`, `CrearSolicitud_YaHayUnaPendienteParaLaMismaOperacion_SeRechazaConError409` |
+| RF-GP-02 | Un Estándar no ve solicitudes de otros ni las pendientes; el Administrador sí ve las pendientes | `ObtenerSolicitud_EstandarPideLaDeOtroUsuario_SeRechazaConError403`, `ObtenerSolicitud_EstandarPideLaSuya_LaDevuelve`, `SolicitudesDeUsuario_DevuelveSoloLasDeEseUsuario`, `Pendientes_HaySolicitudesResueltas_SoloDevuelveLasPendientes`, `ListarPendientes_UsuarioEstandar_SeRechaza`, `ListarPendientes_Administrador_EstaPermitido` |
+| RF-GP-03 | Solo el Administrador aprueba; queda registrado quién y cuándo | `Aprobar_SolicitudPendiente_QuedaAplicadaYRegistraQuienAproboYCuando`, `Aprobar_SolicitudPendiente_PasaAAprobadaYRegistraQuienYCuando`, `AprobarSolicitud_UsuarioEstandar_SeRechaza`, `AprobarSolicitud_Administrador_EstaPermitido`, `AprobarSolicitud_SinSesion_SeRechaza` |
+| RF-GP-04 | Sin motivo (ausente, vacío o solo espacios) no se rechaza y el estado no cambia; con motivo se registra; solo el Administrador rechaza | `Rechazar_SinMotivoEscrito_SeRechazaYLaSolicitudSiguePendiente`, `Rechazar_MotivoAusenteOVacio_SeRechazaYSiguePendiente`, `Rechazar_ConMotivo_QuedaRechazadaYRegistraMotivoQuienYCuando`, `RechazarSolicitud_UsuarioEstandar_SeRechaza` |
+| RF-GP-05 | Tras aprobar llega a Aplicada y el permiso queda efectivo | `Aprobar_SolicitudPendiente_LlegaAAplicadaConFechaDeAplicacion`, `Aprobar_SolicitudPendiente_ElSolicitantePuedeEjecutarLaOperacionSinPasoManual` |
+| RF-GP-06 | Aprobar dos veces, Rechazada → Aplicada y cualquier otra transición fuera de la tabla se rechazan y el estado no cambia | `Aprobar_SolicitudYaAprobada_SeRechazaYElEstadoNoCambia`, `Aprobar_SolicitudRechazada_SeRechazaYSigueRechazada`, `Rechazar_SolicitudYaAplicada_SeRechazaYSigueAplicada`, `Aplicar_SolicitudRechazada_SeRechazaYElEstadoSigueRechazada`, `Aplicar_SolicitudPendienteSinAprobar_SeRechazaYSiguePendiente`, `Rechazar_SolicitudAprobada_SeRechazaYSigueAprobada`, `Rechazar_SolicitudYaRechazada_SeRechazaYConservaElPrimerMotivo`, `Puede_SoloPermiteLasTransicionesDeLaTabla` (los 16 pares de estados) |
+| RF-GP-07 | Un Administrador no aprueba ni rechaza su propia solicitud | `Aprobar_AdministradorSuPropiaSolicitud_SeRechazaYSiguePendiente`, `Rechazar_AdministradorSuPropiaSolicitud_SeRechazaYSiguePendiente` |
+
+El resto de la suite cubre Control de acceso (`tests/Core.Tests/SeguridadTests.cs`) y la máquina de estados del
+negocio (`tests/Core.Tests/TransicionesOrdenCompraTests.cs`).
+
+## Defectos
+
+Práctica 2, **variante B**. Cada defecto es un commit cuyo padre es `practica-2`, etiquetado
+`practica-2-defecto-N`. Solo modifica código de Gestión de permisos (ningún archivo de pruebas) y su mensaje
+dice qué archivo y qué línea cambia. Sobre `practica-2` pasan todas las pruebas; sobre cada etiqueta de defecto,
+`dotnet test` reporta al menos estas fallas:
+
+| Etiqueta | Defecto plantado | Prueba que lo detecta | Comportamiento que comprueba |
+|---|---|---|---|
+| `practica-2-defecto-1` | RF-GP-04: `SolicitudPermiso.cs` línea 52, el motivo solo se comprueba que fue enviado (`motivo is null`) y no que tenga contenido | `Rechazar_SinMotivoEscrito_SeRechazaYLaSolicitudSiguePendiente` (y `Rechazar_MotivoAusenteOVacio_SeRechazaYSiguePendiente`) | Rechazar con motivo `""` o `"   "` debe dar 400 y la solicitud seguir Pendiente |
+| `practica-2-defecto-2` | RF-GP-06: `TransicionesSolicitudPermiso.cs` línea 17, se agrega Aprobada → Rechazada | `Rechazar_SolicitudAprobada_SeRechazaYSigueAprobada` (y `Puede_SoloPermiteLasTransicionesDeLaTabla`) | Rechazar una solicitud Aprobada debe dar 409 y seguir Aprobada, sin motivo |
+| `practica-2-defecto-3` | RF-GP-03: `PoliticasAcceso.cs` línea 83, se elimina la exigencia de Administrador para aprobar (queda solo «con sesión») | `AprobarSolicitud_UsuarioEstandar_SeRechaza` | Un usuario Estándar no puede ejecutar la operación de aprobar |
+| `practica-2-defecto-4` | RF-GP-07: `ServicioPermisos.cs` línea 109, se invierte la condición (`!=` en vez de `==`): rechaza a los demás en lugar de al mismo usuario | `Aprobar_AdministradorSuPropiaSolicitud_SeRechazaYSiguePendiente` (y `Rechazar_AdministradorSuPropiaSolicitud_SeRechazaYSiguePendiente`) | El Administrador que resuelve su propia solicitud debe recibir 403 y la solicitud seguir Pendiente |
+| `practica-2-defecto-5` | RF-GP-06: `TransicionesSolicitudPermiso.cs` línea 18, se agrega Aplicada → Rechazada | `Rechazar_SolicitudYaAplicada_SeRechazaYSigueAplicada` (y `Puede_SoloPermiteLasTransicionesDeLaTabla`) | Rechazar una solicitud ya Aplicada debe dar 409 y seguir Aplicada, sin motivo |
+| `practica-2-defecto-6` | RF-GP-03: `SolicitudPermiso.cs` líneas 44 y 45, se elimina el registro de quién aprobó y cuándo | `Aprobar_SolicitudPendiente_QuedaAplicadaYRegistraQuienAproboYCuando` (y `Aprobar_SolicitudPendiente_PasaAAprobadaYRegistraQuienYCuando`) | Al aprobar quedan registrados `AprobadaPorId` y `FechaAprobacion` |
+
+Para comprobar un defecto:
+
+```powershell
+git checkout practica-2-defecto-1
+git diff practica-2 practica-2-defecto-1 --stat
+dotnet test
+git checkout practica-2
+```
 
 ## 7. Máquina de estados del negocio
 
@@ -326,6 +358,9 @@ de `.github/PULL_REQUEST_TEMPLATE.md` (Qué cambia, Por qué, Cómo probarlo, Qu
 | 7 | `feat/gestion-permisos` | RF-GP-01 a 07, RD-04, RD-06, RD-07, RD-09 |
 | 8 | `test/gestion-permisos` | Suite de pruebas de Gestión de permisos (RD-12) |
 | 9 | `docs/asignacion-2` | README de la pieza, sección Pruebas y bitácora |
+| 10 | `test/suite-completa-permisos` | Suite ampliada: RF-GP-01 a 07 identificados, autorización, 16 pares de transiciones, CI |
+| 11 | `docs/practica-2` | README: pruebas por requisito y sección Defectos |
 
-Entregas: etiqueta **`practica-1`** (Práctica 1) y **`asignacion-2`** (Asignación 2).
+Entregas: etiquetas **`practica-1`** (Práctica 1), **`asignacion-2`** (Asignación 2) y **`practica-2`** con
+`practica-2-defecto-1` a `practica-2-defecto-6` (Práctica 2).
 Bitácoras con el agente: `docs/bitacora-asignacion-1.md` y `docs/bitacora-asignacion-2.md`.
