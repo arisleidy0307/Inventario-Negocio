@@ -49,7 +49,7 @@ public class SolicitudPermiso
     public void Rechazar(int administradorId, string? motivo, DateTime ahora)
     {
         var motivoLimpio = (motivo ?? string.Empty).Trim();
-        if (motivoLimpio.Length == 0)
+        if (motivo is null)
             throw ExcepcionControlada.Solicitud("Para rechazar una solicitud debes escribir el motivo.");
         if (motivoLimpio.Length > LongitudMaximaTexto)
             throw ExcepcionControlada.Solicitud($"El motivo admite hasta {LongitudMaximaTexto} caracteres.");
