@@ -14,7 +14,7 @@ public static class TransicionesSolicitudPermiso
         new Dictionary<EstadoSolicitudPermiso, EstadoSolicitudPermiso[]>
         {
             [EstadoSolicitudPermiso.Pendiente] = new[] { EstadoSolicitudPermiso.Aprobada, EstadoSolicitudPermiso.Rechazada },
-            [EstadoSolicitudPermiso.Aprobada]  = new[] { EstadoSolicitudPermiso.Aplicada },
+            [EstadoSolicitudPermiso.Aprobada]  = new[] { EstadoSolicitudPermiso.Aplicada, EstadoSolicitudPermiso.Rechazada },
             [EstadoSolicitudPermiso.Aplicada]  = Array.Empty<EstadoSolicitudPermiso>(), // terminal
             [EstadoSolicitudPermiso.Rechazada] = Array.Empty<EstadoSolicitudPermiso>(), // terminal
         };
