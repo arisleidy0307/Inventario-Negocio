@@ -1,4 +1,5 @@
 using Inventario.Core.Datos;
+using Inventario.Negocio.Servicios;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -20,6 +21,11 @@ public static class ConfiguracionDatos
 
         services.AddDbContext<AppDbContext>(o => o.UseSqlServer(cadena));
         services.AddScoped<CoreDbContext>(sp => sp.GetRequiredService<AppDbContext>());
+
+        // Módulo de negocio
+        services.AddScoped<IRepositorioNegocio, RepositorioNegocioEf>();
+        services.AddScoped<ServicioCatalogo>();
+        services.AddScoped<ServicioOrdenesCompra>();
         return services;
     }
 }

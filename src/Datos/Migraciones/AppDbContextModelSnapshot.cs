@@ -381,6 +381,9 @@ namespace Inventario.Datos.Migraciones
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
 
+                    b.Property<DateTime?>("FechaCancelacion")
+                        .HasColumnType("datetime2");
+
                     b.Property<DateTime>("FechaCreacion")
                         .HasColumnType("datetime2");
 
@@ -395,6 +398,9 @@ namespace Inventario.Datos.Migraciones
                         .HasColumnType("nvarchar(500)");
 
                     b.Property<int>("ProveedorId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("RecibidaPorUsuarioId")
                         .HasColumnType("int");
 
                     b.HasKey("Id");
