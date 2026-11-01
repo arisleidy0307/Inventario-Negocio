@@ -33,7 +33,8 @@ public class OrdenCompraConfiguracion : IEntityTypeConfiguration<OrdenCompra>
     {
         b.ToTable("OrdenesCompra");
         b.Property(o => o.Estado).HasConversion<string>().HasMaxLength(20).IsRequired();
-        b.Property(o => o.MotivoCancelacion).HasMaxLength(500);
+        b.Property(o => o.MotivoCancelacion).HasMaxLength(OrdenCompra.LongitudMaximaMotivo);
+        b.Ignore(o => o.Total);
         b.HasOne(o => o.Proveedor).WithMany().HasForeignKey(o => o.ProveedorId).OnDelete(DeleteBehavior.Restrict);
         b.HasMany(o => o.Detalles).WithOne(d => d.OrdenCompra!).HasForeignKey(d => d.OrdenCompraId);
     }

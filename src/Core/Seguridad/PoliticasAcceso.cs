@@ -28,6 +28,20 @@ public static class Operaciones
     public const string ListarSolicitudesPendientes = "Permisos.ListarPendientes";
     public const string AprobarSolicitud = "Permisos.Aprobar";
     public const string RechazarSolicitud = "Permisos.Rechazar";
+
+    // Módulo de negocio (Inventario). Core solo conoce los nombres, no depende de Negocio (RD-03).
+    public const string CrearProducto = "Productos.Crear";
+    public const string ListarProductos = "Productos.Listar";
+    public const string MovimientosProducto = "Productos.Movimientos";
+    public const string CrearProveedor = "Proveedores.Crear";
+    public const string ListarProveedores = "Proveedores.Listar";
+    public const string CrearOrden = "Ordenes.Crear";
+    public const string AgregarDetalleOrden = "Ordenes.AgregarDetalle";
+    public const string ListarOrdenes = "Ordenes.Listar";
+    public const string VerOrden = "Ordenes.Ver";
+    public const string EmitirOrden = "Ordenes.Emitir";
+    public const string RecibirOrden = "Ordenes.Recibir";
+    public const string CancelarOrden = "Ordenes.Cancelar";
 }
 
 /// <summary>
@@ -82,6 +96,21 @@ public static class PoliticasAcceso
         [Operaciones.ListarSolicitudesPendientes] = Administrador,
         [Operaciones.AprobarSolicitud]            = Administrador,
         [Operaciones.RechazarSolicitud]           = Administrador,
+
+        // Módulo de negocio (RF-NEG-06): ninguna operación sin sesión válida y exigencia de rol
+        [Operaciones.CrearProducto]       = Administrador,
+        [Operaciones.ListarProductos]     = Exigencia.Autenticado,
+        [Operaciones.MovimientosProducto] = Exigencia.Autenticado,
+        [Operaciones.CrearProveedor]      = Administrador,
+        [Operaciones.ListarProveedores]   = Exigencia.Autenticado,
+        [Operaciones.CrearOrden]          = Exigencia.Autenticado,
+        [Operaciones.AgregarDetalleOrden] = Exigencia.Autenticado, // el servicio exige ser quien la creó o Administrador
+        [Operaciones.ListarOrdenes]       = Exigencia.Autenticado, // un Estándar solo ve las suyas
+        [Operaciones.VerOrden]            = Exigencia.Autenticado, // un Estándar solo ve las suyas
+        [Operaciones.EmitirOrden]         = Administrador,
+        // Otorgable: un Estándar la solicita en Gestión de permisos y solo la ejecuta tras la aprobación.
+        [Operaciones.RecibirOrden]        = Exigencia.RolUPermisoOtorgado(Rol.Administrador),
+        [Operaciones.CancelarOrden]       = Administrador,
     };
 
     /// <summary>Operaciones que se pueden pedir con una solicitud de permiso.</summary>
