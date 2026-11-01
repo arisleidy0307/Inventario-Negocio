@@ -1,6 +1,6 @@
 # Stock Core: Inventario del negocio
 
-Programación III (TDS-007), ITLA 2026-C-3. **Práctica 1: Control de acceso completo.** · **Asignación 2: Gestión de permisos y su primera suite de pruebas.** · **Práctica 2: una suite que detecta defectos.**
+Programación III (TDS-007), ITLA 2026-C-3. **Práctica 1: Control de acceso completo.** · **Asignación 2: Gestión de permisos y su primera suite de pruebas.** · **Práctica 2: una suite que detecta defectos.** · **Práctica 3: módulo de negocio, sus pruebas y su integración.**
 
 API en ASP.NET Core 8 + EF Core + SQL Server. Tiene registro con activación por correo, sesión con
 credencial opaca, roles, administración de usuarios, recuperación de contraseña, una cola de correos
@@ -31,8 +31,8 @@ src/
 │  ├─ Permisos/      Gestión de permisos: SolicitudPermiso, TransicionesSolicitudPermiso, ServicioPermisos
 │  ├─ Datos/         CoreDbContext, RepositorioPermisosEf + configuraciones de las entidades del Core
 │  └─ Comun/         IReloj (RD-11), ExcepcionControlada
-├─ Negocio/          Producto, Proveedor, OrdenCompra, DetalleOrdenCompra, MovimientoStock + máquina de estados
-├─ Datos/            AppDbContext (Core + Negocio) y Migraciones
+├─ Negocio/          Dominio (Producto, Proveedor, OrdenCompra...), Estados (máquina de estados) y Servicios
+├─ Datos/            AppDbContext (Core + Negocio), RepositorioNegocioEf y Migraciones
 ├─ Api/              Controladores delgados (RD-02), autenticación, filtro de roles, manejo de errores
 └─ EnviadorCorreos/  Consola independiente que envía la cola por SMTP
 tests/Core.Tests/    Pruebas xUnit del Core sin levantar la API (RD-12); GestionPermisos/ para la pieza 2
@@ -77,7 +77,7 @@ También se pueden definir una a una: `$env:SMTP_HOST = "smtp.gmail.com"`.
 ```powershell
 git clone https://github.com/arisleidy0307/Inventario-Negocio.git
 cd Inventario-Negocio
-git checkout practica-2
+git checkout practica-3
 
 # Terminal 1: API (crea la BD, aplica migraciones y crea el Administrador inicial)
 . .\scripts\variables.ps1
@@ -122,6 +122,18 @@ Las pruebas se ejecutan con un solo comando; ver la sección **Pruebas** más ab
 | GET | `/api/solicitudes-permiso/pendientes` | `Permisos.ListarPendientes` | Administrador |
 | POST | `/api/solicitudes-permiso/{id}/aprobar` | `Permisos.Aprobar` | Administrador |
 | POST | `/api/solicitudes-permiso/{id}/rechazar` | `Permisos.Rechazar` | Administrador |
+| POST | `/api/productos` | `Productos.Crear` | Administrador |
+| GET | `/api/productos` | `Productos.Listar` | Sesión |
+| GET | `/api/productos/{id}/movimientos` | `Productos.Movimientos` | Sesión |
+| POST | `/api/proveedores` | `Proveedores.Crear` | Administrador |
+| GET | `/api/proveedores` | `Proveedores.Listar` | Sesión |
+| POST | `/api/ordenes-compra` | `Ordenes.Crear` | Sesión |
+| GET | `/api/ordenes-compra` | `Ordenes.Listar` | Sesión (un Estándar solo ve las suyas) |
+| GET | `/api/ordenes-compra/{id}` | `Ordenes.Ver` | Sesión (un Estándar solo ve las suyas) |
+| POST | `/api/ordenes-compra/{id}/detalles` | `Ordenes.AgregarDetalle` | Sesión (quien la creó o Administrador) |
+| POST | `/api/ordenes-compra/{id}/emitir` | `Ordenes.Emitir` | Administrador |
+| POST | `/api/ordenes-compra/{id}/recibir` | `Ordenes.Recibir` | Administrador **o** permiso otorgado (Gestión de permisos) |
+| POST | `/api/ordenes-compra/{id}/cancelar` | `Ordenes.Cancelar` | Administrador |
 
 La exigencia de rol de **todas** las operaciones está en un solo lugar:
 **`src/Core/Seguridad/PoliticasAcceso.cs`** (RF-CA-05). El atributo `[RequiereOperacion]`
@@ -272,7 +284,8 @@ Un usuario pide permiso para ejecutar una operación que su rol no le da. Un Adm
 lo rechaza. Al aprobar, **el sistema aplica el permiso automáticamente** (RF-GP-05).
 
 - Operaciones que se pueden pedir: las marcadas como *otorgables* en `src/Core/Seguridad/PoliticasAcceso.cs`.
-  Hoy es **`Usuarios.Listar`** (`GET /api/usuarios`). La lista también sale en `GET /api/solicitudes-permiso/operaciones`.
+  Hoy son **`Usuarios.Listar`** (`GET /api/usuarios`) y **`Ordenes.Recibir`** (recibir órdenes de compra, sección 7).
+  La lista también sale en `GET /api/solicitudes-permiso/operaciones`.
 - Estados y transiciones, en **un solo punto** (RD-04): `src/Core/Permisos/TransicionesSolicitudPermiso.cs`.
   Tabla completa en **[`docs/gestion-permisos.md`](docs/gestion-permisos.md)**.
 
@@ -333,16 +346,37 @@ Desde un clon limpio, en la raíz del repositorio, **un solo comando** ejecuta t
 dotnet test
 ```
 
-Resultado esperado en `practica-2`: `total: 76; failed: 0`. No hace falta base de datos, variables de entorno ni
-levantar la API (RD-12). Gestión de permisos se prueba con un repositorio en memoria y un reloj fijo
-(`tests/Core.Tests/GestionPermisos/Dobles.cs`). Cada prueba crea los suyos, así que son independientes y pasan
-en cualquier orden. Cada prueba tiene las fases `// Preparar`, `// Actuar` y `// Verificar`, su nombre dice qué
-verifica y lleva el atributo `[Trait("Requisito", "RF-GP-0X")]` con el requisito que cubre.
+Resultado esperado en `practica-3`: `total: 119; failed: 0`. No hace falta SQL Server, variables de entorno ni
+levantar la API (RD-12):
 
-La misma suite corre en GitHub Actions en cada push de rama o etiqueta (`.github/workflows/pruebas.yml`).
+- Gestión de permisos y el módulo de negocio se prueban con repositorios en memoria y un reloj fijo
+  (`tests/Core.Tests/GestionPermisos/Dobles.cs`, `tests/Core.Tests/Negocio/RepositorioNegocioEnMemoria.cs`).
+- La **prueba de integración** (`tests/Core.Tests/Negocio/IntegracionNegocioPermisosTests.cs`) usa los componentes
+  **reales** de los dos módulos (servicios, repositorios EF Core y `AppDbContext`) sobre una base **SQLite en memoria**
+  que se crea y se descarta en cada prueba. La aplicación usa SQL Server; SQLite solo existe durante la prueba.
 
-Para correr solo las pruebas de un requisito: `dotnet test --filter "Requisito=RF-GP-03"`.
-Para correr una prueba: `dotnet test --filter "FullyQualifiedName~Aprobar_SolicitudYaAprobada"`.
+Cada prueba crea sus propios datos, así que son independientes y pasan en cualquier orden. Todas tienen las fases
+`// Preparar`, `// Actuar` y `// Verificar`, y su nombre dice qué verifican.
+
+Filtros útiles:
+
+- Solo la máquina de estados del negocio: `dotnet test --filter "FullyQualifiedName~MaquinaEstadosOrdenCompraTests"`
+- Solo la integración: `dotnet test --filter "FullyQualifiedName~IntegracionNegocioPermisosTests"`
+- Solo un requisito de Gestión de permisos: `dotnet test --filter "Requisito=RF-GP-03"`
+
+### Pruebas de la máquina de estados del negocio
+
+Hay una prueba por cada fila de las tablas de `docs/maquina-de-estados.md` (permitidas, sus condiciones, prohibidas y
+estados terminales), en `tests/Core.Tests/Negocio/MaquinaEstadosOrdenCompraTests.cs`. La correspondencia fila → prueba
+está al final de ese documento. Las prohibidas verifican el `409` **y** que el estado no cambió.
+
+### Prueba de integración: negocio + Gestión de permisos
+
+`RecibirOrden_SeRechazaMientrasLaSolicitudNoEstaAprobada_YSePermiteTrasLaAprobacion` verifica las dos caras: un
+Estándar con la solicitud `Ordenes.Recibir` todavía **Pendiente** recibe `403` y la orden sigue `Emitida` con el stock
+en 0 (leído de la base); un Administrador aprueba la solicitud en Gestión de permisos y el mismo Estándar recibe la
+orden: queda `Recibida` y el stock sube a 5. Las otras dos pruebas de la clase cubren «sin solicitud» y «solicitud
+rechazada».
 
 ### Pruebas por requisito de Gestión de permisos
 
@@ -363,6 +397,30 @@ El resto de la suite cubre Control de acceso (`tests/Core.Tests/SeguridadTests.c
 negocio (`tests/Core.Tests/TransicionesOrdenCompraTests.cs`).
 
 ## Defectos
+
+### Práctica 3: defectos plantados en mi propio código
+
+Cada defecto es un commit cuyo padre es `practica-3`, etiquetado `practica-3-defecto-N`. Solo modifica código de
+producción (ningún archivo de pruebas) y su mensaje dice qué archivo y qué línea cambia. Sobre `practica-3` pasan
+todas las pruebas; sobre cada etiqueta, `dotnet test` reporta al menos estas fallas:
+
+| Etiqueta | Defecto plantado | Prueba que lo detecta | Comportamiento que comprueba |
+|---|---|---|---|
+| `practica-3-defecto-1` | Se agrega a las permitidas la primera fila de prohibidas (Borrador → Recibida) en `TransicionesOrdenCompra.cs` | `Recibir_OrdenEnBorrador_SeRechazaYSigueEnBorrador` (y `Puede_SoloPermiteLasTransicionesDeLaTabla`, `ProhibidasExplicitas_NingunaEstaPermitida`) | Recibir una orden en Borrador da 409 y sigue en Borrador |
+| `practica-3-defecto-2` | Se agrega Cancelada → Borrador: el estado terminal deja de serlo, en `TransicionesOrdenCompra.cs` | `Cancelada_EsTerminal_NingunaTransicionParteDeElla` (y `Puede_SoloPermiteLasTransicionesDeLaTabla`) | De Cancelada no parte ninguna transición |
+| `practica-3-defecto-3` | Se elimina la verificación de la condición de la primera fila con condición (Borrador → Emitida: «al menos un detalle») en `OrdenCompra.cs` | `Emitir_OrdenSinDetalles_SeRechazaYSigueEnBorrador` | Emitir una orden sin detalles da 400 y sigue en Borrador |
+| `practica-3-defecto-4` | Se elimina la consulta a Gestión de permisos en la operación de recibir órdenes, en `ServicioOrdenesCompra.cs` | `RecibirOrden_SeRechazaMientrasLaSolicitudNoEstaAprobada_YSePermiteTrasLaAprobacion` (integración; también `RecibirOrden_EstandarSinSolicitud_SeRechazaYLaOrdenSigueEmitida`, `RecibirOrden_SolicitudRechazada_SigueSinPermitirse` y `RecibirOrden_EstandarSinPermiso_SeRechazaYLaOrdenSigueEmitida`) | Un Estándar sin el permiso `Ordenes.Recibir` aprobado no puede recibir la orden |
+
+Para comprobar un defecto:
+
+```powershell
+git checkout practica-3-defecto-1
+git diff practica-3 practica-3-defecto-1 --stat
+dotnet test
+git checkout practica-3
+```
+
+### Práctica 2: variante B
 
 Práctica 2, **variante B**. Cada defecto es un commit cuyo padre es `practica-2`, etiquetado
 `practica-2-defecto-N`. Solo modifica código de Gestión de permisos (ningún archivo de pruebas) y su mensaje
@@ -387,13 +445,60 @@ dotnet test
 git checkout practica-2
 ```
 
-## 7. Máquina de estados del negocio
+## 7. Módulo de negocio (Práctica 3)
+
+Inventario del negocio: productos, proveedores y **órdenes de compra** con su máquina de estados
+(Borrador → Emitida → Recibida, y Cancelada). Código en `src/Negocio/` (dominio, estados y servicios), persistencia en
+`src/Datos/RepositorioNegocioEf.cs` (tablas `Productos`, `Proveedores`, `OrdenesCompra`, `DetallesOrdenCompra`,
+`MovimientosStock`; migración `OperacionesNegocio`, se aplica sola al arrancar) y API en `src/Api/Controllers/`.
+
+- **RF-NEG-06:** todas las operaciones exigen sesión y declaran su rol en `PoliticasAcceso` (tabla de endpoints de la
+  sección 4). Sin token: `401`. Con un rol que no corresponde: `403`.
+- **Operación que depende de Gestión de permisos:** **recibir una orden** (`Ordenes.Recibir`). Un Estándar la pide con
+  una solicitud, un Administrador la aprueba y solo entonces puede recibir órdenes. `ServicioOrdenesCompra.RecibirAsync`
+  consulta a Gestión de permisos los permisos aprobados del usuario antes de ejecutar.
+- **RD-07:** datos inválidos (código vacío, cantidad 0, proveedor inexistente, etc.) dan `400` controlado.
+- **RD-09:** productos, órdenes, stock y movimientos quedan en SQL Server y sobreviven a reiniciar la API.
+
+### 7.1 Preparación
+
+Usa los tokens `$hAdm` (Administrador) y `$hEst` (Estándar activado) de la sección 6.1, y `$base = "http://localhost:5001"`.
+Para ver el código de un rechazo en PowerShell: `try { ... } catch { $_.Exception.Response.StatusCode.value__; $_.ErrorDetails.Message }`.
+
+```powershell
+function Post($ruta, $cuerpo, $h) { Invoke-RestMethod -Method Post "$base$ruta" -Headers $h -ContentType "application/json" -Body ($cuerpo | ConvertTo-Json) }
+```
+
+### 7.2 Las funcionalidades y cómo probar cada una por separado (RF-NEG-02)
+
+| # | Funcionalidad | Cómo provocarla | Resultado esperado |
+|---|---|---|---|
+| 1 | **Productos** | Admin: `$prod = Post "/api/productos" @{ codigo="P-001"; nombre="Arroz 25 lb"; precioCosto=900 } $hAdm`. Luego `Invoke-RestMethod "$base/api/productos" -Headers $hEst` | `201` con `stock: 0`; el listado lo muestra. Repetir el código: `409`. Crear como Estándar: `403`. Sin token: `401` |
+| 2 | **Proveedores** | Admin: `$prov = Post "/api/proveedores" @{ nombre="Distribuidora Caribe"; correo="ventas@caribe.com" } $hAdm`. Luego `GET /api/proveedores` | `201`; el listado lo muestra. Nombre vacío: `400`. Crear como Estándar: `403` |
+| 3 | **Órdenes en Borrador y sus detalles** | Estándar: `$orden = Post "/api/ordenes-compra" @{ proveedorId=$prov.id } $hEst` y `Post "/api/ordenes-compra/$($orden.id)/detalles" @{ productoId=$prod.id; cantidad=5; costoUnitario=850 } $hEst` | `201`, `estado: Borrador`; con el detalle, `total: 4250`. Cantidad 0: `400`. Proveedor inexistente: `400`. Otro Estándar agregando detalle o viendo la orden: `403` |
+| 4 | **Emitir** (Borrador → Emitida) | Admin: `Post "/api/ordenes-compra/$($orden.id)/emitir" @{} $hAdm` | `200`, `estado: Emitida` con `fechaEmision`. Una orden sin detalles: `400` y sigue Borrador. Como Estándar: `403` |
+| 5 | **Recibir** (Emitida → Recibida), **con Gestión de permisos** | 1) Estándar: `Post ".../recibir" @{} $hEst` → `403`. 2) Estándar: `Post "/api/solicitudes-permiso" @{ operacion="Ordenes.Recibir"; justificacion="Recibo la mercancía" } $hEst` (anota el `id`). 3) Repite el paso 1 → sigue `403` (pendiente). 4) Admin: `Post "/api/solicitudes-permiso/{id}/aprobar" @{} $hAdm`. 5) Estándar, mismo token: `Post ".../recibir" @{} $hEst` | Paso 5: `200`, `estado: Recibida` con `recibidaPorUsuarioId` y `fechaRecepcion`. `GET /api/productos` muestra `stock: 5`. Un Administrador puede recibir sin solicitud |
+| 6 | **Cancelar** | Admin, sobre otra orden en Borrador: `Post ".../cancelar" @{} $hAdm`. Sobre una Emitida: con `@{}` → `400`; con `@{ motivo="Sin existencia" }` → `200` | `estado: Cancelada`; desde Emitida guarda `motivoCancelacion`; el stock no cambia |
+| 7 | **Movimientos de stock** | `Invoke-RestMethod "$base/api/productos/$($prod.id)/movimientos" -Headers $hEst` | Tras recibir la orden: un movimiento `Entrada` de 5 unidades con su `ordenCompraId`. Producto inexistente: `404` |
+
+### 7.3 Transición prohibida y estado terminal (RF-NEG-04, RF-NEG-05)
+
+| Qué | Cómo provocarlo | Resultado esperado |
+|---|---|---|
+| Prohibida: Borrador → Recibida | Admin: `Post ".../recibir" @{} $hAdm` sobre una orden en **Borrador** | `409` "Transición no permitida: la orden está Borrador y no puede pasar a Recibida." y sigue Borrador |
+| Prohibida: Recibida → Cancelada | Admin: `Post ".../cancelar" @{ motivo="x" } $hAdm` sobre la orden **Recibida** | `409` y sigue Recibida |
+| Terminal: Cancelada | Admin: `Post ".../emitir" @{} $hAdm` o `.../cancelar` sobre una orden **Cancelada** | `409`; de Cancelada no sale ninguna transición |
+| RD-09 | Detener la API (Ctrl+C), arrancarla otra vez y `GET /api/ordenes-compra/{id}` y `GET /api/productos` | Las órdenes conservan su estado y el stock sigue igual |
+
+
+## 8. Máquina de estados del negocio
 
 - Estados (RF-NEG-03): **`src/Negocio/Estados/EstadoOrdenCompra.cs`**. Son 4: Borrador, Emitida, Recibida y Cancelada.
-- Transiciones (RD-04): **`src/Negocio/Estados/TransicionesOrdenCompra.cs`**, método `Puede(desde, hacia)`. Prohibida explícita: Recibida → Cancelada. Terminales: Recibida y Cancelada.
-- Tabla completa (desde, hacia, quién, condición): **[`docs/maquina-de-estados.md`](docs/maquina-de-estados.md)**.
+- Transiciones (RD-04): **`src/Negocio/Estados/TransicionesOrdenCompra.cs`**, métodos `Puede` y `Validar`, y la lista `ProhibidasExplicitas` (Borrador → Recibida, Recibida → Cancelada, Recibida → Emitida, Cancelada → Emitida). Terminales: Recibida y Cancelada.
+- Es independiente de la máquina de Gestión de permisos (RF-NEG-09).
+- Tablas de permitidas y prohibidas (desde, hacia, quién, condición) y la prueba de cada fila: **[`docs/maquina-de-estados.md`](docs/maquina-de-estados.md)**.
 
-## 8. Flujo de trabajo
+## 9. Flujo de trabajo
 
 Cada funcionalidad se hizo en su propia rama y se fusionó a `main` por pull request con la plantilla
 de `.github/PULL_REQUEST_TEMPLATE.md` (Qué cambia, Por qué, Cómo probarlo, Qué NO incluye):
@@ -412,7 +517,11 @@ de `.github/PULL_REQUEST_TEMPLATE.md` (Qué cambia, Por qué, Cómo probarlo, Qu
 | 9 | `docs/asignacion-2` | README de la pieza, sección Pruebas y bitácora |
 | 10 | `test/suite-completa-permisos` | Suite ampliada: RF-GP-01 a 07 identificados, autorización, 16 pares de transiciones, CI |
 | 11 | `docs/practica-2` | README: pruebas por requisito y sección Defectos |
+| 12 | `feat/negocio-ordenes` | Módulo de negocio: productos, proveedores, órdenes de compra y su máquina de estados (RF-NEG-02 a 06, 09) |
+| 13 | `test/negocio-ordenes` | Suite de la máquina de estados, funcionalidades e integración con Gestión de permisos |
+| 14 | `docs/practica-3` | README del negocio, `docs/maquina-de-estados.md` y sección Defectos de la Práctica 3 |
 
 Entregas: etiquetas **`practica-1`** (Práctica 1), **`asignacion-2`** (Asignación 2) y **`practica-2`** con
-`practica-2-defecto-1` a `practica-2-defecto-6` (Práctica 2).
+`practica-2-defecto-1` a `practica-2-defecto-6` (Práctica 2), y **`practica-3`** con
+`practica-3-defecto-1` a `practica-3-defecto-4` (Práctica 3).
 Bitácoras con el agente: `docs/bitacora-asignacion-1.md` y `docs/bitacora-asignacion-2.md`.
