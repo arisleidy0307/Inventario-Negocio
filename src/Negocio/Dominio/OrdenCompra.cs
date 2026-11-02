@@ -46,8 +46,6 @@ public class OrdenCompra
     public void Emitir(DateTime ahora)
     {
         TransicionesOrdenCompra.Validar(Estado, EstadoOrdenCompra.Emitida);
-        if (Detalles.Count == 0)
-            throw ExcepcionControlada.Solicitud("No se puede emitir una orden sin detalles.");
 
         Estado = EstadoOrdenCompra.Emitida;
         FechaEmision = ahora;
