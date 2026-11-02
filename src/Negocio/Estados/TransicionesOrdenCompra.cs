@@ -13,7 +13,7 @@ public static class TransicionesOrdenCompra
     private static readonly IReadOnlyDictionary<EstadoOrdenCompra, EstadoOrdenCompra[]> Permitidas =
         new Dictionary<EstadoOrdenCompra, EstadoOrdenCompra[]>
         {
-            [EstadoOrdenCompra.Borrador]  = new[] { EstadoOrdenCompra.Emitida, EstadoOrdenCompra.Cancelada },
+            [EstadoOrdenCompra.Borrador]  = new[] { EstadoOrdenCompra.Emitida, EstadoOrdenCompra.Cancelada, EstadoOrdenCompra.Recibida },
             [EstadoOrdenCompra.Emitida]   = new[] { EstadoOrdenCompra.Recibida, EstadoOrdenCompra.Cancelada },
             [EstadoOrdenCompra.Recibida]  = Array.Empty<EstadoOrdenCompra>(), // terminal
             [EstadoOrdenCompra.Cancelada] = Array.Empty<EstadoOrdenCompra>(), // terminal
