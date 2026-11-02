@@ -16,7 +16,7 @@ public static class TransicionesOrdenCompra
             [EstadoOrdenCompra.Borrador]  = new[] { EstadoOrdenCompra.Emitida, EstadoOrdenCompra.Cancelada },
             [EstadoOrdenCompra.Emitida]   = new[] { EstadoOrdenCompra.Recibida, EstadoOrdenCompra.Cancelada },
             [EstadoOrdenCompra.Recibida]  = Array.Empty<EstadoOrdenCompra>(), // terminal
-            [EstadoOrdenCompra.Cancelada] = Array.Empty<EstadoOrdenCompra>(), // terminal
+            [EstadoOrdenCompra.Cancelada] = new[] { EstadoOrdenCompra.Borrador },
         };
 
     /// <summary>
