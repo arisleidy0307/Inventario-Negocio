@@ -85,9 +85,6 @@ public class ServicioOrdenesCompra
     /// </summary>
     public async Task<OrdenCompra> RecibirAsync(int ordenId, int actorId, Rol rolActor)
     {
-        var permisos = await _permisos.PermisosDeUsuarioAsync(actorId);
-        if (!PoliticasAcceso.Permite(Operaciones.RecibirOrden, autenticado: true, rolActor, permisos))
-            throw ExcepcionControlada.Prohibido("Necesitas el permiso Ordenes.Recibir aprobado por un Administrador.");
 
         var orden = await BuscarAsync(ordenId);
         var ahora = _reloj.UtcNow;
