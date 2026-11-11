@@ -1,19 +1,164 @@
 # Stock Core: Inventario del negocio
 
-Programación III (TDS-007), ITLA 2026-C-3. **Práctica 1: Control de acceso completo.** · **Asignación 2: Gestión de permisos y su primera suite de pruebas.** · **Práctica 2: una suite que detecta defectos.** · **Práctica 3: módulo de negocio, sus pruebas y su integración.**
+Programación III (TDS-007), ITLA 2026-C-3. **Práctica 1: Control de acceso completo.** · **Asignación 2: Gestión de permisos y su primera suite de pruebas.** · **Práctica 2: una suite que detecta defectos.** · **Práctica 3: módulo de negocio, sus pruebas y su integración.** · **Práctica 4: tu proyecto en un contenedor, con documentos y una API externa.**
 
 API en ASP.NET Core 8 + EF Core + SQL Server. Tiene registro con activación por correo, sesión con
 credencial opaca, roles, administración de usuarios, recuperación de contraseña, una cola de correos
-con un enviador independiente y la estructura de la máquina de estados del módulo de negocio
-(`OrdenCompra`).
+con un enviador independiente, Gestión de permisos, un **Manejador de documentos** y el módulo de negocio de
+**inventario** (productos, proveedores y órdenes de compra con su máquina de estados), que cotiza las órdenes en otra
+moneda con una **API externa** de tasas de cambio. Todo levanta con **`docker compose up --build`**.
+
+## Contenedor
+
+El proyecto completo corre en contenedores. **Solo hace falta Docker** (Docker Desktop en Windows o macOS, o Docker
+Engine con Compose v2): no hay que instalar .NET ni SQL Server, ni crear la base a mano. La composición levanta todo
+y la API aplica las migraciones al arrancar.
+
+```powershell
+git clone https://github.com/arisleidy0307/Inventario-Negocio.git
+cd Inventario-Negocio
+git checkout practica-4
+Copy-Item .env.example .env        # en Linux o macOS: cp .env.example .env
+docker compose up --build
+```
+
+- **Dirección:** la API responde en **http://localhost:5001**. Swagger: **http://localhost:5001/swagger**.
+- **Está lista** cuando el log de `api-1` muestra `Now listening on: http://[::]:8080`. La primera vez tarda unos
+  minutos: descarga las imágenes, compila y SQL Server se inicializa.
+- **Administrador inicial:** `ADMIN_EMAIL` / `ADMIN_PASSWORD` del `.env`. Con el `.env.example` tal cual:
+  `admin@stockcore.com` / `Admin1234`.
+- **Detener:** `Ctrl+C` en la terminal de `docker compose up`, o `docker compose down` desde otra terminal en la
+  carpeta del proyecto. Los datos **se conservan**. Solo `docker compose down -v` borra los volúmenes (vuelve a cero).
+- En segundo plano: `docker compose up --build -d` y, para ver el log, `docker compose logs -f api`.
+
+Archivos: `Dockerfile` (imagen en dos etapas: compila con el SDK de .NET 8 y ejecuta con el runtime de ASP.NET),
+`.dockerignore` (deja fuera `bin/`, `obj/`, `.git/`, `.env`, pruebas y documentación), `docker-compose.yml` y
+`.env.example`.
+
+| Servicio | Qué es | Puerto del equipo |
+|---|---|---|
+| `api` | La API (imagen del `Dockerfile`) | **5001** → 8080 del contenedor. Es el único que publica un puerto |
+| `db` | SQL Server 2022 | Ninguno: solo lo alcanzan `api` y `enviador`, por el nombre `db` (`Server=db,1433`) |
+| `enviador` | El Enviador de correos (misma imagen), revisando la cola cada 15 s | Ninguno |
+
+| Volumen con nombre | Dónde se monta | Qué guarda |
+|---|---|---|
+| `documentos` | `/app/documentos` del servicio `api` | Los archivos de los documentos (RF-DOC-05), fuera de la imagen |
+| `datos-sqlserver` | `/var/opt/mssql` del servicio `db` | La base: usuarios, sesiones, solicitudes, órdenes y registros de documentos (RD-09) |
+
+### Variables del contenedor (`.env`)
+
+`.env.example` trae **todas** las variables con un valor de ejemplo; copiarlo a `.env` es el único paso previo. `.env`
+está en `.gitignore` y en `.dockerignore`: no se versiona ni entra a la imagen. `docker-compose.yml` solo tiene
+referencias `${...}` a esos valores.
+
+| Variable | Para qué | Valor de ejemplo |
+|---|---|---|
+| `MSSQL_SA_PASSWORD` | Contraseña de `sa` en el servicio `db`; la API y el enviador la usan para conectarse | `StockCore2026Sql` |
+| `APP_BASE_URL` | Con ella se arman los enlaces de los correos | `http://localhost:5001` |
+| `ADMIN_EMAIL`, `ADMIN_PASSWORD` | Primer Administrador | `admin@stockcore.com`, `Admin1234` |
+| `CORREO_MODO` | `consola`: los correos se escriben en el log del enviador. `smtp`: se envían de verdad | `consola` |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`, `SMTP_SSL` | Solo con `CORREO_MODO=smtp` (sección 5.5) | `smtp.gmail.com`, `587`, ... |
+| `EXCHANGE_API_KEY` | Clave de la API externa (sección **API externa**) | `tu-clave-de-exchangerate-api` |
+| `EXCHANGE_API_URL` | Dirección de la API externa; solo se cambia para simular que está caída | `https://v6.exchangerate-api.com/v6/` |
+| `ACTIVACION_MINUTOS`, `RECUPERACION_MINUTOS`, `SESION_HORAS`, `DOCUMENTOS_MAX_MB` | Opcionales | `1440`, `30`, `8`, `10` |
+
+### Los correos dentro del contenedor
+
+Con `CORREO_MODO=consola` (el del `.env.example`) la API encola los correos como siempre y el enviador los procesa,
+pero en lugar de mandarlos por SMTP **escribe cada correo completo en su log**: destinatario, asunto y el cuerpo con el
+enlace de activación o el código de recuperación. Para leerlos:
+
+```powershell
+docker compose logs enviador
+```
+
+EJEMPLO_CORREO_CONSOLA
+
+Los enlaces usan `APP_BASE_URL` (`http://localhost:5001`), así que se abren tal cual en el navegador. Para enviar
+correos reales, en `.env` pon `CORREO_MODO=smtp` y los datos `SMTP_*` de una cuenta (por ejemplo, Gmail con una
+contraseña de aplicación) y aplica el cambio con `docker compose up -d`.
+
+### Los datos sobreviven a destruir los contenedores (RF-DOC-05, RD-09)
+
+1. Con un usuario Estándar, sube un documento (sección 9) y anota su `id`.
+2. `docker compose down` (**sin** `-v`): los contenedores se eliminan.
+3. `docker compose up` otra vez y espera a `Now listening on`.
+4. `GET /api/documentos` lo sigue listando, `GET /api/documentos/{id}/descargar` devuelve el mismo archivo y el
+   usuario inicia sesión con su contraseña de siempre.
+
+### El resto del README, con Docker
+
+Todo lo demás funciona igual contra el contenedor, con `$base = "http://localhost:5001"`. Solo cambia esto:
+
+| Donde el README dice... | Con Docker |
+|---|---|
+| Definir variables con `scripts\variables.ps1` (sección 3) | Se definen en `.env` |
+| "Ejecutar el EnviadorCorreos" | Ya corre solo en el servicio `enviador`; los correos se leen con `docker compose logs enviador` |
+| `sqlcmd -S "(localdb)\MSSQLLocalDB" -d InventarioP3 -Q "..."` | `docker compose exec db /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P StockCore2026Sql -C -d Inventario -Q "SELECT Id, Correo, Rol, Activo FROM Usuarios"` (la contraseña es la `MSSQL_SA_PASSWORD` de tu `.env`) |
+| Detener la API y arrancarla otra vez | `docker compose restart api` |
+
+### Revisión acumulada: dónde se prueba cada frente
+
+| Frente | Sección |
+|---|---|
+| Registro con activación por correo | 5.1 (el enlace sale en `docker compose logs enviador`) |
+| Inicio y cierre de sesión | 5.2 |
+| Un Estándar invocando una operación de Administrador: rechazo | 5.3 (RF-CA-06) y 7.2 (crear producto como Estándar: `403`) |
+| Recuperación de contraseña | 5.4 (el código sale en `docker compose logs enviador`) |
+| Gestión de permisos: crear, aprobar, rechazar y transiciones fuera de la tabla | 6.2 |
+| Módulo de negocio: una operación válida y la transición prohibida | 7.2 y 7.3 (Borrador → Recibida: `409`) |
 
 ---
+
+## API externa
+
+| | |
+|---|---|
+| **API** | **ExchangeRate-API** v6 (https://www.exchangerate-api.com), endpoint `pair`: `GET https://v6.exchangerate-api.com/v6/{clave}/pair/DOP/{moneda}`. Exige clave; el plan gratuito da 1 500 consultas al mes |
+| **Operación que la usa** | **Cotizar una orden de compra en otra moneda:** `GET /api/ordenes-compra/{id}/cotizacion?moneda=USD` (con sesión; un Estándar solo cotiza sus órdenes) |
+| **Variable** | **`EXCHANGE_API_KEY`**, en `.env`. `.env.example` la trae con el valor de ejemplo `tu-clave-de-exchangerate-api` |
+| **Código** | `src/Negocio/Servicios/ServicioCotizacionOrdenes.cs` (la operación) y `src/Datos/Externos/ClienteExchangeRateApi.cs` (el cliente HTTP) |
+
+La operación toma la orden (sus detalles y su total, en pesos dominicanos), le pide a la API la tasa DOP → moneda y
+devuelve el total convertido, la tasa y la fecha de la tasa. No reenvía la respuesta de la API: si la orden no existe,
+es de otro Estándar, no tiene detalles o la moneda no es un código de 3 letras, se rechaza **sin llamar a la API**.
+
+Para usar una clave real: créala gratis en https://www.exchangerate-api.com, ponla en `.env`
+(`EXCHANGE_API_KEY=...`) y aplica el cambio con `docker compose up -d`.
+
+```powershell
+# con $hEst del dueño de la orden (sección 6.1) y una orden con detalles (sección 7.2)
+Invoke-RestMethod "$base/api/ordenes-compra/1/cotizacion?moneda=USD" -Headers $hEst
+```
+
+EJEMPLO_API_REAL
+
+### Sin clave o con la API caída: rechazo controlado (RD-07, RD-08)
+
+El resto del proyecto sigue funcionando; solo la cotización responde con un mensaje claro:
+
+| Situación | Respuesta de `GET /api/ordenes-compra/{id}/cotizacion` |
+|---|---|
+| Con el `.env.example` tal cual (clave de ejemplo) o una clave inválida | `503` "ExchangeRate-API rechazó la clave de EXCHANGE_API_KEY. Revisa el valor en tu archivo .env; el resto del sistema sigue funcionando." |
+| Variable vacía (`EXCHANGE_API_KEY=`) | `503` "La cotización no está disponible: falta configurar la variable EXCHANGE_API_KEY en el archivo .env." |
+| API caída o sin internet (para provocarlo: `EXCHANGE_API_URL=http://api-caida.invalid/` en `.env` y `docker compose up -d`) | `503` "El servicio de tasas de cambio (ExchangeRate-API) no responde. Intenta más tarde; el resto del sistema sigue funcionando." |
+| Moneda inválida (`moneda=dolares`) o la misma `DOP` | `400`, sin llamar a la API |
+| Moneda que la API no soporta (`moneda=XYZ`, con clave real) | `400` "La moneda XYZ no está soportada por ExchangeRate-API." |
+| Orden de otro Estándar | `403`, sin llamar a la API |
+
+La clave no está en el código, en el `Dockerfile`, en `docker-compose.yml` ni en la imagen: llega al contenedor como
+variable de entorno desde `.env`, que nunca se versiona. Los mensajes de error no la muestran y la API no registra
+las peticiones HTTP salientes (cuya URL lleva la clave). Para comprobar que no está en el historial:
+`git log --all -p | Select-String "<tu clave>"` no encuentra nada, y `git log --all -- .env` no muestra ningún commit.
+
 
 ## 1. Requisitos previos
 
 | Herramienta | Versión |
 |---|---|
 | .NET SDK | 8.0 o superior. El proyecto apunta a `net8.0` con `RollForward=Major`, así que también corre con .NET 9 o 10. |
+| Docker | Solo para la sección **Contenedor**: con Docker no hace falta nada más de esta tabla |
 | SQL Server | LocalDB (`(localdb)\MSSQLLocalDB`, viene con Visual Studio) o cualquier SQL Server |
 | Cuenta SMTP | Por ejemplo Gmail con una **contraseña de aplicación** (https://myaccount.google.com/apppasswords) |
 
@@ -29,20 +174,25 @@ src/
 │  ├─ Servicios/     ServicioRegistro, ServicioSesion, ServicioUsuarios, ServicioContrasenas, ColaCorreos
 │  ├─ Seguridad/     PoliticasAcceso, HasherContrasena, GeneradorTokens, PoliticaContrasena, ValidadorCorreo
 │  ├─ Permisos/      Gestión de permisos: SolicitudPermiso, TransicionesSolicitudPermiso, ServicioPermisos
-│  ├─ Datos/         CoreDbContext, RepositorioPermisosEf + configuraciones de las entidades del Core
+│  ├─ Documentos/    Manejador de documentos: Documento, ServicioDocumentos, AlmacenArchivosEnDisco
+│  ├─ Datos/         CoreDbContext, RepositorioPermisosEf, RepositorioDocumentosEf + configuraciones del Core
 │  └─ Comun/         IReloj (RD-11), ExcepcionControlada
 ├─ Negocio/          Dominio (Producto, Proveedor, OrdenCompra...), Estados (máquina de estados) y Servicios
-├─ Datos/            AppDbContext (Core + Negocio), RepositorioNegocioEf y Migraciones
+│                    (incluye ServicioCotizacionOrdenes, que usa la API externa)
+├─ Datos/            AppDbContext (Core + Negocio), RepositorioNegocioEf, Migraciones y
+│                    Externos/ClienteExchangeRateApi (API externa de tasas de cambio)
 ├─ Api/              Controladores delgados (RD-02), autenticación, filtro de roles, manejo de errores
-└─ EnviadorCorreos/  Consola independiente que envía la cola por SMTP
-tests/Core.Tests/    Pruebas xUnit del Core sin levantar la API (RD-12); GestionPermisos/ para la pieza 2
+└─ EnviadorCorreos/  Consola independiente que envía la cola por SMTP (o la escribe en su log con CORREO_MODO=consola)
+tests/Core.Tests/    Pruebas xUnit sin levantar la API (RD-12): GestionPermisos/, Negocio/, Documentos/, ApiExterna/
 docs/                maquina-de-estados.md, gestion-permisos.md, pruebas.http, bitácoras
-scripts/             variables.ejemplo.ps1
+scripts/             variables.ejemplo.ps1 (para ejecutar sin Docker)
+Dockerfile, .dockerignore, docker-compose.yml, .env.example    Contenedor (sección «Contenedor»)
 ```
 
-## 3. Variables de entorno
+## 3. Variables de entorno (sin Docker)
 
-Ningún valor sensible está en el repositorio (RD-10). Todo se lee de variables de entorno.
+Ningún valor sensible está en el repositorio (RD-10). Todo se lee de variables de entorno. Con Docker se definen en
+`.env` (sección **Contenedor**); esta sección es para ejecutar con `dotnet run` y LocalDB.
 
 | Variable | Obligatoria | Para qué |
 |---|---|---|
@@ -59,6 +209,10 @@ Ningún valor sensible está en el repositorio (RD-10). Todo se lee de variables
 | `ACTIVACION_MINUTOS` | No (`1440`) | Vigencia del enlace de activación |
 | `RECUPERACION_MINUTOS` | No (`30`) | Vigencia del código de recuperación |
 | `SESION_HORAS` | No (`8`) | Vigencia de la credencial de sesión |
+| `CORREO_MODO` | No (`smtp`) | `smtp` envía por SMTP; `consola` escribe cada correo en la salida del Enviador |
+| `EXCHANGE_API_KEY` | Solo para cotizar | Clave de ExchangeRate-API (sección **API externa**). Sin ella, la cotización da `503` controlado |
+| `DOCUMENTOS_RUTA` | No (`src/Api/almacen-documentos`) | Carpeta donde se guardan los archivos de los documentos (en Docker, el volumen `documentos`) |
+| `DOCUMENTOS_MAX_MB` | No (`10`) | Tamaño máximo de un documento |
 
 ### Cómo definirlas en PowerShell
 
@@ -72,7 +226,9 @@ notepad scripts\variables.ps1                                    # rellena tus v
 
 También se pueden definir una a una: `$env:SMTP_HOST = "smtp.gmail.com"`.
 
-## 4. Ejecutar
+## 4. Ejecutar sin Docker
+
+Con Docker basta la sección **Contenedor**. Sin Docker:
 
 ```powershell
 git clone https://github.com/arisleidy0307/Inventario-Negocio.git
@@ -134,6 +290,12 @@ Las pruebas se ejecutan con un solo comando; ver la sección **Pruebas** más ab
 | POST | `/api/ordenes-compra/{id}/emitir` | `Ordenes.Emitir` | Administrador |
 | POST | `/api/ordenes-compra/{id}/recibir` | `Ordenes.Recibir` | Administrador **o** permiso otorgado (Gestión de permisos) |
 | POST | `/api/ordenes-compra/{id}/cancelar` | `Ordenes.Cancelar` | Administrador |
+| GET | `/api/ordenes-compra/{id}/cotizacion?moneda=USD` | `Ordenes.Cotizar` | Sesión (un Estándar solo cotiza las suyas). Usa la API externa |
+| POST | `/api/documentos` (multipart, campo `archivo`) | `Documentos.Subir` | Sesión |
+| GET | `/api/documentos` | `Documentos.Listar` | Sesión (un Estándar solo ve los suyos; el Administrador, todos) |
+| GET | `/api/documentos/{id}` | `Documentos.Ver` | Sesión (dueño o Administrador) |
+| GET | `/api/documentos/{id}/descargar` | `Documentos.Descargar` | Sesión (dueño o Administrador) |
+| DELETE | `/api/documentos/{id}` | `Documentos.Eliminar` | Sesión (dueño o Administrador). Eliminación lógica |
 
 La exigencia de rol de **todas** las operaciones está en un solo lugar:
 **`src/Core/Seguridad/PoliticasAcceso.cs`** (RF-CA-05). El atributo `[RequiereOperacion]`
@@ -346,14 +508,18 @@ Desde un clon limpio, en la raíz del repositorio, **un solo comando** ejecuta t
 dotnet test
 ```
 
-Resultado esperado en `practica-3`: `total: 119; failed: 0`. No hace falta SQL Server, variables de entorno ni
-levantar la API (RD-12):
+Resultado esperado en `practica-4`: `total: 155; failed: 0` (en `practica-3` eran 119). No hace falta SQL Server,
+Docker, variables de entorno, internet ni levantar la API (RD-12):
 
 - Gestión de permisos y el módulo de negocio se prueban con repositorios en memoria y un reloj fijo
   (`tests/Core.Tests/GestionPermisos/Dobles.cs`, `tests/Core.Tests/Negocio/RepositorioNegocioEnMemoria.cs`).
 - La **prueba de integración** (`tests/Core.Tests/Negocio/IntegracionNegocioPermisosTests.cs`) usa los componentes
   **reales** de los dos módulos (servicios, repositorios EF Core y `AppDbContext`) sobre una base **SQLite en memoria**
   que se crea y se descarta en cada prueba. La aplicación usa SQL Server; SQLite solo existe durante la prueba.
+- El **Manejador de documentos** (`tests/Core.Tests/Documentos/`) se prueba con dobles en memoria y, además, con sus
+  piezas reales: archivos en una carpeta temporal y `RepositorioDocumentosEf` sobre SQLite.
+- La **API externa** (`tests/Core.Tests/ApiExterna/`) se prueba con un manejador HTTP falso: respuesta correcta, sin
+  clave, clave rechazada, API caída, tiempo agotado y respuesta inválida. No usa la red ni una clave real.
 
 Cada prueba crea sus propios datos, así que son independientes y pasan en cualquier orden. Todas tienen las fases
 `// Preparar`, `// Actuar` y `// Verificar`, y su nombre dice qué verifican.
@@ -363,6 +529,8 @@ Filtros útiles:
 - Solo la máquina de estados del negocio: `dotnet test --filter "FullyQualifiedName~MaquinaEstadosOrdenCompraTests"`
 - Solo la integración: `dotnet test --filter "FullyQualifiedName~IntegracionNegocioPermisosTests"`
 - Solo un requisito de Gestión de permisos: `dotnet test --filter "Requisito=RF-GP-03"`
+- Solo el Manejador de documentos: `dotnet test --filter "FullyQualifiedName~Documentos"`
+- Solo la API externa: `dotnet test --filter "FullyQualifiedName~CotizacionOrdenesTests"`
 
 ### Pruebas de la máquina de estados del negocio
 
@@ -498,7 +666,48 @@ function Post($ruta, $cuerpo, $h) { Invoke-RestMethod -Method Post "$base$ruta" 
 - Es independiente de la máquina de Gestión de permisos (RF-NEG-09).
 - Tablas de permitidas y prohibidas (desde, hacia, quién, condición) y la prueba de cada fila: **[`docs/maquina-de-estados.md`](docs/maquina-de-estados.md)**.
 
-## 9. Flujo de trabajo
+## 9. Manejador de documentos (Práctica 4)
+
+Pieza 3 del Core: `src/Core/Documentos/` (`Documento`, `ServicioDocumentos`, `AlmacenArchivosEnDisco`) y
+`src/Core/Datos/RepositorioDocumentosEf.cs`. API: `src/Api/Controllers/DocumentosController.cs`. Migración
+`ManejadorDocumentos` (tabla `Documentos`, se aplica sola al arrancar).
+
+- **Todas** las operaciones exigen sesión, declarada en `PoliticasAcceso` y verificada en el servidor (RD-06): sin
+  token, `401`, aunque se invoque el endpoint directamente.
+- El archivo se guarda en `DOCUMENTOS_RUTA` con un nombre generado (no con el que envió el usuario). En Docker esa
+  carpeta es el **volumen con nombre `documentos`**, fuera de la imagen (RF-DOC-05). La base solo guarda el registro.
+- La eliminación es **lógica** (RF-DOC-04): el registro queda con `Eliminado = 1`, `FechaEliminacion` y
+  `EliminadoPorUsuarioId`, y el archivo no se borra.
+- Tamaño máximo: `DOCUMENTOS_MAX_MB` (10 MB por defecto).
+
+En PowerShell 5.1 se sube con `curl.exe` (viene con Windows). Con `$base`, `$adm` y `$est` de la sección 6.1, y `$est2`
+el token de **otro** usuario Estándar:
+
+```powershell
+"Factura 001 - Distribuidora Caribe" | Out-File -Encoding utf8 factura.txt
+curl.exe -s -w "`n-> %{http_code}`n" -X POST "$base/api/documentos" -H "Authorization: Bearer $est" -F "archivo=@factura.txt"
+Invoke-RestMethod "$base/api/documentos" -Headers @{ Authorization = "Bearer $est" }
+curl.exe -s -w "`n-> %{http_code}`n" "$base/api/documentos/1/descargar" -H "Authorization: Bearer $est"
+curl.exe -s -w "`n-> %{http_code}`n" -X DELETE "$base/api/documentos/1" -H "Authorization: Bearer $est"
+```
+
+En Swagger, `POST /api/documentos` muestra un botón para elegir el archivo (campo `archivo`).
+
+| Criterio | Cómo provocarlo | Resultado esperado |
+|---|---|---|
+| RF-DOC-01 | Estándar: `POST /api/documentos` con `-F "archivo=@factura.txt"`. Luego `GET /api/documentos/{id}` | `201` con `id`, `nombre`, `tipo`, `tamanoBytes`, `fechaSubida` y `subidoPorUsuarioId`. La consulta devuelve los mismos datos |
+| RD-07 | `POST /api/documentos` sin archivo (`-F "otro=x"`) o con un archivo vacío (`New-Item vacio.txt` y `-F "archivo=@vacio.txt"`) | `400` "Debes adjuntar un archivo en el campo «archivo»." / "El archivo está vacío." Nada se registra |
+| RD-06 | Cualquier endpoint de documentos sin `Authorization` | `401` |
+| RF-DOC-02 | El otro Estándar sube un documento. Cada Estándar hace `GET /api/documentos`. Luego el Administrador | Cada Estándar ve **solo los suyos**. El Administrador ve los de todos. Ninguno ve los eliminados |
+| RF-DOC-03 | Dueño: `GET /api/documentos/{id}/descargar`. Administrador: lo mismo | `200` con el archivo (mismo contenido y nombre) |
+| RF-DOC-03 | **Otro** Estándar: `GET /api/documentos/{id}/descargar` (y `GET /api/documentos/{id}`) | `403` "Solo quien subió el documento o un Administrador puede descargarlo." |
+| RF-DOC-04 | **Otro** Estándar: `DELETE /api/documentos/{id}` | `403`, y el documento sigue en el listado del dueño |
+| RF-DOC-04 | Dueño (o Administrador): `DELETE /api/documentos/{id}`. Luego `GET /api/documentos` y `GET /api/documentos/{id}/descargar` | `200`. Ya no aparece en el listado y descargarlo da `404`. En la base el registro sigue: `docker compose exec db /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P StockCore2026Sql -C -d Inventario -Q "SELECT Id, NombreOriginal, Eliminado, FechaEliminacion FROM Documentos"` muestra `Eliminado = 1` |
+| RF-DOC-05 | Sección **Contenedor** → «Los datos sobreviven»: `docker compose down` (sin `-v`) y `docker compose up` | El documento sigue en el listado y se descarga; el usuario inicia sesión |
+
+La auditoría de subidas y eliminaciones (RF-DOC-06) llega con la Pieza 6; no forma parte de esta entrega.
+
+## 10. Flujo de trabajo
 
 Cada funcionalidad se hizo en su propia rama y se fusionó a `main` por pull request con la plantilla
 de `.github/PULL_REQUEST_TEMPLATE.md` (Qué cambia, Por qué, Cómo probarlo, Qué NO incluye):
@@ -520,8 +729,13 @@ de `.github/PULL_REQUEST_TEMPLATE.md` (Qué cambia, Por qué, Cómo probarlo, Qu
 | 12 | `feat/negocio-ordenes` | Módulo de negocio: productos, proveedores, órdenes de compra y su máquina de estados (RF-NEG-02 a 06, 09) |
 | 13 | `test/negocio-ordenes` | Suite de la máquina de estados, funcionalidades e integración con Gestión de permisos |
 | 14 | `docs/practica-3` | README del negocio, `docs/maquina-de-estados.md` y sección Defectos de la Práctica 3 |
+| 15 | `feat/manejador-documentos` | Manejador de documentos del Core (RF-DOC-01 a 05, RD-06, RD-07) |
+| 16 | `feat/api-externa-tasa-cambio` | Cotización de órdenes con ExchangeRate-API, clave en `EXCHANGE_API_KEY` (RD-07, RD-08, RD-10) |
+| 17 | `feat/contenedor` | `Dockerfile`, `.dockerignore`, `docker-compose.yml`, `.env.example` y correos en modo consola |
+| 18 | `test/practica-4` | Pruebas del Manejador de documentos y de la API externa |
+| 19 | `docs/practica-4` | Secciones Contenedor, API externa y Manejador de documentos |
 
 Entregas: etiquetas **`practica-1`** (Práctica 1), **`asignacion-2`** (Asignación 2) y **`practica-2`** con
 `practica-2-defecto-1` a `practica-2-defecto-6` (Práctica 2), y **`practica-3`** con
-`practica-3-defecto-1` a `practica-3-defecto-4` (Práctica 3).
+`practica-3-defecto-1` a `practica-3-defecto-4` (Práctica 3), y **`practica-4`** (Práctica 4).
 Bitácoras con el agente: `docs/bitacora-asignacion-1.md` y `docs/bitacora-asignacion-2.md`.
