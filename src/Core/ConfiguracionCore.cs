@@ -1,4 +1,6 @@
+using Inventario.Core.Comun;
 using Inventario.Core.Datos;
+using Inventario.Core.Documentos;
 using Inventario.Core.Permisos;
 using Inventario.Core.Seguridad;
 using Inventario.Core.Servicios;
@@ -20,6 +22,13 @@ public static class ConfiguracionCore
         services.AddScoped<ServicioContrasenas>();
         services.AddScoped<IRepositorioPermisos, RepositorioPermisosEf>();
         services.AddScoped<ServicioPermisos>();
+
+        // Manejador de documentos (Pieza 3)
+        services.AddSingleton<IAlmacenArchivos>(new AlmacenArchivosEnDisco(opciones.DocumentosRuta));
+        services.AddScoped<IRepositorioDocumentos, RepositorioDocumentosEf>();
+        services.AddScoped(sp => new ServicioDocumentos(
+            sp.GetRequiredService<IRepositorioDocumentos>(), sp.GetRequiredService<IAlmacenArchivos>(),
+            sp.GetRequiredService<IReloj>(), opciones.DocumentosMaxMb * 1024L * 1024L));
         return services;
     }
 }

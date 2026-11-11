@@ -20,4 +20,10 @@ public class OpcionesCore
 
     /// <summary>RF-CA-19: minutos de bloqueo.</summary>
     public int MinutosBloqueo { get; set; } = 15;
+
+    /// <summary>DOCUMENTOS_RUTA: carpeta donde se guardan los archivos de los documentos (en Docker, un volumen).</summary>
+    public string DocumentosRuta { get; set; } = "almacen-documentos";
+
+    /// <summary>DOCUMENTOS_MAX_MB: tamaño máximo de un documento (por defecto 10 MB).</summary>
+    public int DocumentosMaxMb { get; set; } = 10;
 }

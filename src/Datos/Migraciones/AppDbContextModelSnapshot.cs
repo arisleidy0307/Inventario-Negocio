@@ -22,6 +22,59 @@ namespace Inventario.Datos.Migraciones
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("Inventario.Core.Documentos.Documento", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("Eliminado")
+                        .HasColumnType("bit");
+
+                    b.Property<int?>("EliminadoPorUsuarioId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("FechaEliminacion")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("FechaSubida")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("NombreAlmacenado")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("NombreOriginal")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<int>("SubidoPorUsuarioId")
+                        .HasColumnType("int");
+
+                    b.Property<long>("TamanoBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("TipoContenido")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EliminadoPorUsuarioId");
+
+                    b.HasIndex("NombreAlmacenado")
+                        .IsUnique();
+
+                    b.HasIndex("SubidoPorUsuarioId", "Eliminado");
+
+                    b.ToTable("Documentos", (string)null);
+                });
+
             modelBuilder.Entity("Inventario.Core.Dominio.CodigoVerificacion", b =>
                 {
                     b.Property<int>("Id")
@@ -470,6 +523,20 @@ namespace Inventario.Datos.Migraciones
                     b.HasKey("Id");
 
                     b.ToTable("Proveedores", (string)null);
+                });
+
+            modelBuilder.Entity("Inventario.Core.Documentos.Documento", b =>
+                {
+                    b.HasOne("Inventario.Core.Dominio.Usuario", null)
+                        .WithMany()
+                        .HasForeignKey("EliminadoPorUsuarioId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Inventario.Core.Dominio.Usuario", null)
+                        .WithMany()
+                        .HasForeignKey("SubidoPorUsuarioId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Inventario.Core.Dominio.CodigoVerificacion", b =>
