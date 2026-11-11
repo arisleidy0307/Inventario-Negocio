@@ -18,7 +18,11 @@ var opciones = new OpcionesCore
     AppBaseUrl = builder.Configuration["APP_BASE_URL"] ?? "https://localhost:7001",
     MinutosActivacion = int.TryParse(builder.Configuration["ACTIVACION_MINUTOS"], out var ma) && ma > 0 ? ma : 24 * 60,
     MinutosRecuperacion = int.TryParse(builder.Configuration["RECUPERACION_MINUTOS"], out var mr) && mr > 0 ? mr : 30,
-    HorasSesion = int.TryParse(builder.Configuration["SESION_HORAS"], out var hs) && hs > 0 ? hs : 8
+    HorasSesion = int.TryParse(builder.Configuration["SESION_HORAS"], out var hs) && hs > 0 ? hs : 8,
+    DocumentosRuta = string.IsNullOrWhiteSpace(builder.Configuration["DOCUMENTOS_RUTA"])
+        ? Path.Combine(builder.Environment.ContentRootPath, "almacen-documentos")
+        : builder.Configuration["DOCUMENTOS_RUTA"]!,
+    DocumentosMaxMb = int.TryParse(builder.Configuration["DOCUMENTOS_MAX_MB"], out var mb) && mb > 0 ? mb : 10
 };
 builder.Services.AgregarCore(opciones);
 
