@@ -73,7 +73,27 @@ enlace de activación o el código de recuperación. Para leerlos:
 docker compose logs enviador
 ```
 
-EJEMPLO_CORREO_CONSOLA
+Ejemplo real (prueba del 10 de noviembre de 2026 con el `.env.example`):
+
+```
+enviador-1  | [01:37:36] Revisando la cola de correos...
+enviador-1  |   ----------------------------------------------------------------
+enviador-1  |   Para:   ...+p4@gmail.com
+enviador-1  |   Asunto: Activa tu cuenta - Inventario
+enviador-1  |
+enviador-1  |   Hola Almacen P4:
+enviador-1  |
+enviador-1  |   Para activar tu cuenta abre este enlace:
+enviador-1  |   http://localhost:5001/api/auth/activar?token=DN3RFGZwnTNiZzPhRlaIZlfb7H8O...
+enviador-1  |
+enviador-1  |   El enlace se puede usar una sola vez y vence en 1440 minutos.
+enviador-1  |   ----------------------------------------------------------------
+enviador-1  |   [enviado] #1 -> ...+p4@gmail.com: Activa tu cuenta - Inventario
+enviador-1  | [01:37:36] Enviados: 1. Con error (siguen pendientes): 0.
+```
+
+Al arrancar puede salir una vez `No se pudo revisar la cola (SqlException). Se reintenta en 15 s.`: es el enviador
+esperando a que la API cree las tablas; a los 15 s ya revisa la cola normalmente.
 
 Los enlaces usan `APP_BASE_URL` (`http://localhost:5001`), así que se abren tal cual en el navegador. Para enviar
 correos reales, en `.env` pon `CORREO_MODO=smtp` y los datos `SMTP_*` de una cuenta (por ejemplo, Gmail con una
@@ -132,7 +152,30 @@ Para usar una clave real: créala gratis en https://www.exchangerate-api.com, po
 Invoke-RestMethod "$base/api/ordenes-compra/1/cotizacion?moneda=USD" -Headers $hEst
 ```
 
-EJEMPLO_API_REAL
+Ejemplo real, obtenido el 10 de noviembre de 2026 con una clave gratuita (la clave no aparece en la respuesta).
+Respuesta de ExchangeRate-API a `GET https://v6.exchangerate-api.com/v6/{clave}/pair/DOP/USD`:
+
+```json
+{"result":"success","documentation":"https://www.exchangerate-api.com/docs","terms_of_use":"https://www.exchangerate-api.com/terms","time_last_update_unix":1794355202,"time_last_update_utc":"Wed, 11 Nov 2026 00:00:02 +0000","time_next_update_unix":1794441602,"time_next_update_utc":"Thu, 12 Nov 2026 00:00:02 +0000","base_code":"DOP","target_code":"USD","conversion_rate":0.01646}
+```
+
+Lo que devolvió la operación del proyecto para una orden de 5 × 850 DOP (`GET /api/ordenes-compra/1/cotizacion?moneda=USD`):
+
+```json
+{
+  "ordenId": 1,
+  "estado": "Borrador",
+  "monedaOrden": "DOP",
+  "totalOrden": 4250,
+  "moneda": "USD",
+  "tasa": 0.01646,
+  "totalConvertido": 69.96,
+  "fechaTasa": "2026-11-11T00:00:02Z",
+  "fuente": "ExchangeRate-API"
+}
+```
+
+Con `moneda=EUR` la misma orden dio `tasa: 0.01469` y `totalConvertido: 62.43`.
 
 ### Sin clave o con la API caída: rechazo controlado (RD-07, RD-08)
 
