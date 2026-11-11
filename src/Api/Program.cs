@@ -58,7 +58,22 @@ app.UsarManejoErrores();
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    db.Database.Migrate();
+
+    // En Docker la base puede tardar unos segundos más en aceptar conexiones: se reintenta antes de rendirse.
+    for (var intento = 1; ; intento++)
+    {
+        try
+        {
+            db.Database.Migrate();
+            break;
+        }
+        catch (Exception ex) when (intento < 12)
+        {
+            app.Logger.LogWarning("La base de datos aún no responde ({Error}). Reintento {Intento} de 12 en 5 s.",
+                ex.GetType().Name, intento);
+            await Task.Delay(TimeSpan.FromSeconds(5));
+        }
+    }
 
     // Primer Administrador desde ADMIN_EMAIL y ADMIN_PASSWORD (sin él no se puede probar nada de Administrador).
     var usuarios = scope.ServiceProvider.GetRequiredService<ServicioUsuarios>();
