@@ -29,6 +29,13 @@ public static class Operaciones
     public const string AprobarSolicitud = "Permisos.Aprobar";
     public const string RechazarSolicitud = "Permisos.Rechazar";
 
+    // Manejador de documentos (Pieza 3 del Core)
+    public const string SubirDocumento = "Documentos.Subir";
+    public const string ListarDocumentos = "Documentos.Listar";
+    public const string VerDocumento = "Documentos.Ver";
+    public const string DescargarDocumento = "Documentos.Descargar";
+    public const string EliminarDocumento = "Documentos.Eliminar";
+
     // Módulo de negocio (Inventario). Core solo conoce los nombres, no depende de Negocio (RD-03).
     public const string CrearProducto = "Productos.Crear";
     public const string ListarProductos = "Productos.Listar";
@@ -96,6 +103,13 @@ public static class PoliticasAcceso
         [Operaciones.ListarSolicitudesPendientes] = Administrador,
         [Operaciones.AprobarSolicitud]            = Administrador,
         [Operaciones.RechazarSolicitud]           = Administrador,
+
+        // Manejador de documentos (RF-DOC-01 a 04): todas exigen sesión; el servicio exige ser dueño o Administrador
+        [Operaciones.SubirDocumento]     = Exigencia.Autenticado,
+        [Operaciones.ListarDocumentos]   = Exigencia.Autenticado, // un Estándar solo ve los suyos
+        [Operaciones.VerDocumento]       = Exigencia.Autenticado,
+        [Operaciones.DescargarDocumento] = Exigencia.Autenticado,
+        [Operaciones.EliminarDocumento]  = Exigencia.Autenticado,
 
         // Módulo de negocio (RF-NEG-06): ninguna operación sin sesión válida y exigencia de rol
         [Operaciones.CrearProducto]       = Administrador,

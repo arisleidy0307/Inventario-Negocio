@@ -52,3 +52,6 @@ Thumbs.db
 appsettings.*.json
 !appsettings.json
 scripts/variables.ps1
+
+# Archivos de documentos subidos al ejecutar sin Docker
+almacen-documentos/

@@ -22,6 +22,17 @@ public static class ManejoErrores
             {
                 problema = new ProblemDetails { Status = controlada.CodigoEstado, Title = controlada.Message };
             }
+            else if (error is BadHttpRequestException peticionInvalida)
+            {
+                // Por ejemplo, un archivo más grande de lo que el servidor acepta leer (RD-07).
+                problema = new ProblemDetails
+                {
+                    Status = peticionInvalida.StatusCode,
+                    Title = peticionInvalida.StatusCode == StatusCodes.Status413PayloadTooLarge
+                        ? "La petición es demasiado grande."
+                        : "La petición no es válida."
+                };
+            }
             else
             {
                 var logger = contexto.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("ErrorNoControlado");

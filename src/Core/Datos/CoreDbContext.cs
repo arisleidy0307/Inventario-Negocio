@@ -1,3 +1,4 @@
+using Inventario.Core.Documentos;
 using Inventario.Core.Dominio;
 using Inventario.Core.Permisos;
 using Microsoft.EntityFrameworkCore;
@@ -18,6 +19,7 @@ public abstract class CoreDbContext : DbContext
     public DbSet<Sesion> Sesiones => Set<Sesion>();
     public DbSet<SolicitudPermiso> SolicitudesPermiso => Set<SolicitudPermiso>();
     public DbSet<PermisoUsuario> PermisosUsuario => Set<PermisoUsuario>();
+    public DbSet<Documento> Documentos => Set<Documento>();
 
     /// <summary>RD-11: toda fecha leída de la BD vuelve marcada como UTC.</summary>
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
