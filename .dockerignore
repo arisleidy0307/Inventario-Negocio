@@ -1,0 +1,39 @@
+# Lo que NO se copia a la imagen al construirla
+
+# Carpetas de compilación y dependencias instaladas
+**/bin/
+**/obj/
+**/out/
+**/publish/
+**/packages/
+**/node_modules/
+
+# Historial de git y configuración del repositorio
+.git/
+.gitignore
+.github/
+
+# Editores
+.vs/
+.vscode/
+.idea/
+**/*.user
+**/*.suo
+
+# Secretos y configuración local: nunca entran a la imagen (RD-10)
+.env
+.env.*
+scripts/variables.ps1
+**/appsettings.*.json
+
+# Archivos subidos al ejecutar sin Docker
+**/almacen-documentos/
+
+# No hacen falta para ejecutar la aplicación
+tests/
+docs/
+scripts/
+*.md
+Dockerfile
+.dockerignore
+docker-compose.yml
