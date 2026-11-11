@@ -28,8 +28,8 @@ COPY --from=compilacion /app ./
 RUN mkdir -p /app/documentos && chown -R $APP_UID /app/documentos
 USER $APP_UID
 
-ENV ASPNETCORE_URLS=http://+:8080 \
-    DOCUMENTOS_RUTA=/app/documentos
+# La imagen de ASP.NET ya escucha en el puerto 8080 (ASPNETCORE_HTTP_PORTS=8080).
+ENV DOCUMENTOS_RUTA=/app/documentos
 EXPOSE 8080
 
 # Por defecto arranca la API; el servicio «enviador» cambia el comando.

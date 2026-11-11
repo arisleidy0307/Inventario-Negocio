@@ -41,6 +41,8 @@ services:
       SESION_HORAS: ${SESION_HORAS:-8}
       DOCUMENTOS_MAX_MB: ${DOCUMENTOS_MAX_MB:-10}
       DOCUMENTOS_RUTA: /app/documentos
+      # Log más limpio: sin cada consulta SQL que ejecuta EF Core
+      Logging__LogLevel__Microsoft.EntityFrameworkCore.Database.Command: Warning
     volumes:
       - documentos:/app/documentos       # RF-DOC-05: los archivos viven en un volumen, no en la imagen
     restart: unless-stopped
