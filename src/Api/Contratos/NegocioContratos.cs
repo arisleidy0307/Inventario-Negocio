@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using Inventario.Negocio.Dominio;
+using Inventario.Negocio.Servicios;
 
 namespace Inventario.Api.Contratos;
 
@@ -50,4 +51,11 @@ public record OrdenCompraResponse(
         o.Id, o.ProveedorId, o.Proveedor?.Nombre, o.Estado.ToString(), o.CreadaPorUsuarioId, o.FechaCreacion,
         o.FechaEmision, o.FechaRecepcion, o.RecibidaPorUsuarioId, o.FechaCancelacion, o.MotivoCancelacion, o.Total,
         o.Detalles.Select(d => new DetalleResponse(d.ProductoId, d.Producto?.Nombre, d.Cantidad, d.CostoUnitario)).ToList());
+}
+
+public record CotizacionOrdenResponse(int OrdenId, string Estado, string MonedaOrden, decimal TotalOrden, string Moneda,
+    decimal Tasa, decimal TotalConvertido, DateTime? FechaTasa, string Fuente)
+{
+    public static CotizacionOrdenResponse Desde(CotizacionOrden c) => new(c.OrdenId, c.Estado.ToString(), c.MonedaOrden,
+        c.TotalOrden, c.Moneda, c.Tasa, c.TotalConvertido, c.FechaTasaUtc, c.Fuente);
 }

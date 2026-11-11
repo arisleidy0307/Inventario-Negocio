@@ -49,6 +49,7 @@ public static class Operaciones
     public const string EmitirOrden = "Ordenes.Emitir";
     public const string RecibirOrden = "Ordenes.Recibir";
     public const string CancelarOrden = "Ordenes.Cancelar";
+    public const string CotizarOrden = "Ordenes.Cotizar";
 }
 
 /// <summary>
@@ -125,6 +126,8 @@ public static class PoliticasAcceso
         // Otorgable: un Estándar la solicita en Gestión de permisos y solo la ejecuta tras la aprobación.
         [Operaciones.RecibirOrden]        = Exigencia.RolUPermisoOtorgado(Rol.Administrador),
         [Operaciones.CancelarOrden]       = Administrador,
+        // Usa la API externa de tasas de cambio; un Estándar solo cotiza sus propias órdenes
+        [Operaciones.CotizarOrden]        = Exigencia.Autenticado,
     };
 
     /// <summary>Operaciones que se pueden pedir con una solicitud de permiso.</summary>

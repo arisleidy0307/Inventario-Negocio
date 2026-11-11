@@ -56,4 +56,11 @@ public class OrdenesCompraController : ControllerBase
     [RequiereOperacion(Operaciones.CancelarOrden)]
     public async Task<ActionResult<OrdenCompraResponse>> Cancelar(int id, CancelarOrdenRequest req) =>
         Ok(OrdenCompraResponse.Desde(await _ordenes.CancelarAsync(id, req.Motivo)));
+
+    /// <summary>Cotiza el total de la orden (DOP) en otra moneda con la tasa del día de ExchangeRate-API.</summary>
+    [HttpGet("{id:int}/cotizacion")]
+    [RequiereOperacion(Operaciones.CotizarOrden)]
+    public async Task<ActionResult<CotizacionOrdenResponse>> Cotizar(int id, [FromQuery] string? moneda,
+        [FromServices] ServicioCotizacionOrdenes cotizaciones) =>
+        Ok(CotizacionOrdenResponse.Desde(await cotizaciones.CotizarAsync(id, User.UsuarioId(), User.Rol(), moneda ?? "USD")));
 }
