@@ -9,6 +9,9 @@ using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// La URL de la API externa lleva la clave: nunca se registran las peticiones HTTP salientes (RD-10).
+builder.Logging.AddFilter("System.Net.Http.HttpClient", LogLevel.Warning);
+
 builder.Services.AgregarDatos(builder.Configuration);
 builder.Services.AddSingleton<IReloj, RelojSistema>();
 

@@ -18,4 +18,7 @@ public class ExcepcionControlada : Exception
     public static ExcepcionControlada Prohibido(string mensaje) => new(403, mensaje);
     public static ExcepcionControlada NoEncontrado(string mensaje) => new(404, mensaje);
     public static ExcepcionControlada Conflicto(string mensaje) => new(409, mensaje);
+
+    /// <summary>Un servicio externo no está configurado o no responde (RD-07, RD-08): 503 controlado.</summary>
+    public static ExcepcionControlada NoDisponible(string mensaje) => new(503, mensaje);
 }

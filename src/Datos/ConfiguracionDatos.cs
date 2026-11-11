@@ -1,4 +1,5 @@
 using Inventario.Core.Datos;
+using Inventario.Datos.Externos;
 using Inventario.Negocio.Servicios;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -26,6 +27,12 @@ public static class ConfiguracionDatos
         services.AddScoped<IRepositorioNegocio, RepositorioNegocioEf>();
         services.AddScoped<ServicioCatalogo>();
         services.AddScoped<ServicioOrdenesCompra>();
+
+        // API externa de tasas de cambio (RD-10: la clave solo llega por EXCHANGE_API_KEY)
+        services.AddSingleton<IProveedorTasaCambio>(new ClienteExchangeRateApi(
+            new HttpClient { Timeout = TimeSpan.FromSeconds(10) },
+            configuracion["EXCHANGE_API_KEY"], configuracion["EXCHANGE_API_URL"]));
+        services.AddScoped<ServicioCotizacionOrdenes>();
         return services;
     }
 }
