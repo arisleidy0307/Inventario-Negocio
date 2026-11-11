@@ -1,5 +1,3 @@
-using System.Net;
-using System.Net.Mail;
 using Inventario.Core.Comun;
 using Inventario.Core.Dominio;
 using Inventario.Datos;
@@ -8,20 +6,20 @@ using Microsoft.EntityFrameworkCore;
 namespace Inventario.EnviadorCorreos;
 
 /// <summary>
-/// Toma los correos pendientes, los envía por SMTP y los marca como enviados (RF-NOT-09).
+/// Toma los correos pendientes, los envía (por SMTP o a la consola, según CORREO_MODO) y los marca como enviados (RF-NOT-09).
 /// RF-NOT-12: cada fila se reclama con un UPDATE condicionado a Estado = 'Pendiente' antes de enviarla,
 /// así dos ejecuciones (seguidas o simultáneas) nunca envían el mismo correo dos veces.
 /// </summary>
 public class ProcesadorCola
 {
     private readonly AppDbContext _db;
-    private readonly ConfiguracionSmtp _smtp;
+    private readonly IEnvioCorreo _envio;
     private readonly IReloj _reloj;
 
-    public ProcesadorCola(AppDbContext db, ConfiguracionSmtp smtp, IReloj reloj)
+    public ProcesadorCola(AppDbContext db, IEnvioCorreo envio, IReloj reloj)
     {
         _db = db;
-        _smtp = smtp;
+        _envio = envio;
         _reloj = reloj;
     }
 
@@ -51,7 +49,7 @@ public class ProcesadorCola
             var correo = await _db.CorreosEnCola.AsNoTracking().FirstAsync(c => c.Id == id);
             try
             {
-                await EnviarAsync(correo);
+                await _envio.EnviarAsync(correo);
                 enviados++;
                 Console.WriteLine($"  [enviado] #{correo.Id} -> {correo.Destinatario}: {correo.Asunto}");
             }
@@ -71,21 +69,5 @@ public class ProcesadorCola
         }
 
         return (enviados, conError);
-    }
-
-    private async Task EnviarAsync(CorreoEnCola correo)
-    {
-        using var mensaje = new MailMessage(_smtp.Remitente, correo.Destinatario, correo.Asunto, correo.Cuerpo)
-        {
-            IsBodyHtml = false
-        };
-        using var cliente = new SmtpClient(_smtp.Host, _smtp.Puerto)
-        {
-            EnableSsl = _smtp.UsarSsl,
-            Credentials = new NetworkCredential(_smtp.Usuario, _smtp.Contrasena),
-            DeliveryMethod = SmtpDeliveryMethod.Network,
-            Timeout = 20000
-        };
-        await cliente.SendMailAsync(mensaje);
     }
 }
