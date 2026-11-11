@@ -35,6 +35,7 @@ services:
       ADMIN_EMAIL: ${ADMIN_EMAIL:?Falta ADMIN_EMAIL. Copia .env.example a .env}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Falta ADMIN_PASSWORD. Copia .env.example a .env}
       EXCHANGE_API_KEY: ${EXCHANGE_API_KEY:-}
+      EXCHANGE_API_URL: ${EXCHANGE_API_URL:-https://v6.exchangerate-api.com/v6/}
       ACTIVACION_MINUTOS: ${ACTIVACION_MINUTOS:-1440}
       RECUPERACION_MINUTOS: ${RECUPERACION_MINUTOS:-30}
       SESION_HORAS: ${SESION_HORAS:-8}
