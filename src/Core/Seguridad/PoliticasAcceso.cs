@@ -41,6 +41,9 @@ public static class Operaciones
     public const string MarcarNotificacionLeida = "Notificaciones.MarcarLeida";
     public const string PreferenciasNotificaciones = "Notificaciones.Preferencias";
 
+    // Cola de correos
+    public const string ListarCorreos = "Correos.Listar";
+
     // Módulo de negocio (Inventario). Core solo conoce los nombres, no depende de Negocio (RD-03).
     public const string CrearProducto = "Productos.Crear";
     public const string ListarProductos = "Productos.Listar";
@@ -121,6 +124,9 @@ public static class PoliticasAcceso
         [Operaciones.MisNotificaciones]          = Exigencia.Autenticado,
         [Operaciones.MarcarNotificacionLeida]    = Exigencia.Autenticado,
         [Operaciones.PreferenciasNotificaciones] = Exigencia.Autenticado,
+
+        // Cola de correos (RF-NOT-11): solo el Administrador la consulta
+        [Operaciones.ListarCorreos] = Administrador,
 
         // Módulo de negocio (RF-NEG-06): ninguna operación sin sesión válida y exigencia de rol
         [Operaciones.CrearProducto]       = Administrador,

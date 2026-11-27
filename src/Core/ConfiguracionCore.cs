@@ -17,6 +17,7 @@ public static class ConfiguracionCore
         services.AddSingleton<HasherContrasena>();
         services.AddSingleton<GeneradorTokens>();
         services.AddScoped<ColaCorreos>();
+        services.AddScoped<ServicioConsultaCorreos>();
         services.AddScoped<ServicioRegistro>();
         services.AddScoped<ServicioSesion>();
         services.AddScoped<ServicioUsuarios>();
