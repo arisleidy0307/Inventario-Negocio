@@ -1,6 +1,6 @@
 # Stock Core: Inventario del negocio
 
-Programación III (TDS-007), ITLA 2026-C-3. **Práctica 1: Control de acceso completo.** · **Asignación 2: Gestión de permisos y su primera suite de pruebas.** · **Práctica 2: una suite que detecta defectos.** · **Práctica 3: módulo de negocio, sus pruebas y su integración.** · **Práctica 4: tu proyecto en un contenedor, con documentos y una API externa.**
+Programación III (TDS-007), ITLA 2026-C-3. **Práctica 1: Control de acceso completo.** · **Asignación 2: Gestión de permisos y su primera suite de pruebas.** · **Práctica 2: una suite que detecta defectos.** · **Práctica 3: módulo de negocio, sus pruebas y su integración.** · **Práctica 4: tu proyecto en un contenedor, con documentos y una API externa.** · **Práctica 5: notificaciones, cola de correos y reportes, delegados al agente.**
 
 API en ASP.NET Core 8 + EF Core + SQL Server. Tiene registro con activación por correo, sesión con
 credencial opaca, roles, administración de usuarios, recuperación de contraseña, una cola de correos
@@ -58,6 +58,7 @@ referencias `${...}` a esos valores.
 | `APP_BASE_URL` | Con ella se arman los enlaces de los correos | `http://localhost:5001` |
 | `ADMIN_EMAIL`, `ADMIN_PASSWORD` | Primer Administrador | `admin@stockcore.com`, `Admin1234` |
 | `CORREO_MODO` | `consola`: los correos se escriben en el log del enviador. `smtp`: se envían de verdad | `consola` |
+| `CORREO_MAX_INTENTOS` | Intentos por correo antes de quedar `Fallido` (sección **Notificaciones**) | `3` |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`, `SMTP_SSL` | Solo con `CORREO_MODO=smtp` (sección 5.5) | `smtp.gmail.com`, `587`, ... |
 | `EXCHANGE_API_KEY` | Clave de la API externa (sección **API externa**) | `tu-clave-de-exchangerate-api` |
 | `EXCHANGE_API_URL` | Dirección de la API externa; solo se cambia para simular que está caída | `https://v6.exchangerate-api.com/v6/` |
@@ -128,6 +129,7 @@ Todo lo demás funciona igual contra el contenedor, con `$base = "http://localho
 | Recuperación de contraseña | 5.4 (el código sale en `docker compose logs enviador`) |
 | Gestión de permisos: crear, aprobar, rechazar y transiciones fuera de la tabla | 6.2 |
 | Módulo de negocio: una operación válida y la transición prohibida | 7.2 y 7.3 (Borrador → Recibida: `409`) |
+| Manejador de documentos: un documento sobrevive a `docker compose down` (sin `-v`) | «Los datos sobreviven a destruir los contenedores», arriba |
 
 ---
 
@@ -196,6 +198,153 @@ las peticiones HTTP salientes (cuya URL lleva la clave). Para comprobar que no e
 `git log --all -p | Select-String "<tu clave>"` no encuentra nada, y `git log --all -- .env` no muestra ningún commit.
 
 
+## Notificaciones
+
+Pieza 4 del Core (`src/Core/Notificaciones/`). La delegué al agente con el contexto de **`AGENTS.md`** y la acepté
+contra **`docs/criterios-notificaciones-reportes.md`** (criterios CA-NOT y CA-COL); los dos archivos están en el
+historial antes del primer commit de notificaciones.
+
+- **Dos canales (RF-NOT-06):** cada notificación aparece en la bandeja del destinatario (`GET /api/notificaciones`)
+  **y** encola un correo cuyo asunto es el título de la notificación. El correo **solo se encola**: lo envía el
+  enviador (RF-NOT-08).
+- **Apagar el correo (RF-NOT-07):** `PUT /api/notificaciones/preferencias` con `{ "correo": false }`. La
+  notificación sigue llegando a la bandeja y no se encola ningún correo. No afecta los correos de la cuenta
+  (activación y recuperación).
+- Todas las rutas exigen sesión (`401` sin token). Cada usuario ve y marca **solo las suyas**.
+
+### Cómo provocar cada evento
+
+Con `$base`, `$hAdm` y `$hEst` de la sección 6.1 (y `$hEst2`, el token de **otro** Estándar) y la función `Post` de
+la sección 7.1:
+
+| Evento | Cómo provocarlo | Quién recibe la notificación |
+|---|---|---|
+| **RF-NOT-01** Solicitud de permiso creada | Estándar: `Post "/api/solicitudes-permiso" @{ operacion="Ordenes.Recibir"; justificacion="Recibo la mercancía" } $hEst` | **Cada Administrador activo** (tipo `SolicitudCreada`, con la operación y el solicitante). Ningún Estándar. `Invoke-RestMethod "$base/api/notificaciones" -Headers $hEst` no muestra nada nuevo |
+| **RF-NOT-02** Solicitud aprobada | Admin: `Post "/api/solicitudes-permiso/{id}/aprobar" @{} $hAdm` | El solicitante (tipo `SolicitudAprobada`: «fue aprobada» y la operación) |
+| **RF-NOT-02** Solicitud rechazada | Admin: `Post "/api/solicitudes-permiso/{id}/rechazar" @{ motivo="No corresponde a tu puesto" } $hAdm` | El solicitante (tipo `SolicitudRechazada`: «fue rechazada» y **el motivo**) |
+| **RF-NOT-03** Orden de compra emitida (evento del negocio) | El Estándar crea una orden con un detalle (sección 7.2, funcionalidad 3) y un Admin la emite: `Post "/api/ordenes-compra/{id}/emitir" @{} $hAdm` | Quien creó la orden (tipo `OrdenEmitida`, con el número y el total en DOP) |
+| **RF-NOT-03** Orden de compra recibida (evento del negocio) | Admin: `Post "/api/ordenes-compra/{id}/recibir" @{} $hAdm` | Quien creó la orden (tipo `OrdenRecibida`, con las unidades que entraron al stock) |
+
+A nadie se le notifica su propia acción (por ejemplo, un Administrador que emite una orden que él mismo creó).
+
+| Criterio | Cómo provocarlo | Resultado esperado |
+|---|---|---|
+| RF-NOT-04 | `Invoke-RestMethod "$base/api/notificaciones" -Headers $hEst` y lo mismo con `$hEst2` | Cada uno ve solo las suyas, de la más nueva a la más vieja, con `leida` y el total `noLeidas`. `?soloNoLeidas=true` deja solo las no leídas |
+| RF-NOT-05 | Dueño: `Post "/api/notificaciones/{id}/leer" @{} $hEst`. Otro usuario: lo mismo con `$hEst2` | Dueño: `200`, `leida: true` con `fechaLectura`, y `noLeidas` baja en 1. Otro usuario: `403` y sigue sin leer. Inexistente: `404` |
+| RF-NOT-06 | Después de cualquier evento: Admin `Invoke-RestMethod "$base/api/correos" -Headers $hAdm` y `docker compose logs enviador` | Hay un correo para el destinatario con el título de la notificación como asunto, y el enviador lo envía |
+| RF-NOT-07 | Estándar: `Invoke-RestMethod -Method Put "$base/api/notificaciones/preferencias" -Headers $hEst -ContentType "application/json" -Body '{"correo":false}'`. Luego un Admin rechaza una solicitud suya | La notificación aparece en su bandeja, pero **no** aparece ningún correo nuevo para él en `GET /api/correos`. Con `{"correo":true}` la siguiente vuelve a encolar su correo |
+
+### La cola de correos
+
+Cada correo de la tabla `CorreosEnCola` tiene `estado` (`Pendiente`, `Enviado` o `Fallido`), `intentos`,
+`fechaCreacion`, `fechaUltimoIntento`, `fechaEnvio` y `ultimoError` (RF-NOT-11).
+
+- **Máximo de intentos: 3** (variable `CORREO_MAX_INTENTOS`, por defecto 3). Si un envío falla, el correo vuelve a
+  `Pendiente` con el error y se reintenta en la siguiente pasada del enviador (cada 15 s). Al tercer fallo queda
+  **`Fallido`** con su último error, ya no se intenta más y **no se borra** (RF-NOT-10).
+- **Sin duplicados (RF-NOT-12):** antes de enviar, el enviador reclama cada fila con un
+  `UPDATE ... WHERE Estado = 'Pendiente'`, así dos ejecuciones nunca envían el mismo correo.
+- **Consultar la cola (RF-NOT-11):** solo el Administrador. El cuerpo no se muestra, porque lleva enlaces y códigos.
+
+  ```powershell
+  Invoke-RestMethod "$base/api/correos" -Headers $hAdm
+  Invoke-RestMethod "$base/api/correos?estado=Fallido" -Headers $hAdm
+  Invoke-RestMethod "$base/api/correos" -Headers $hEst     # 403
+  ```
+
+**Ejecutar el procesador de la cola (RF-NOT-09).** En Docker corre solo en el servicio `enviador` (modo continuo).
+Para ejecutarlo **una vez** a mano, en otra terminal:
+
+```powershell
+docker compose run --rm enviador dotnet /app/enviador/Inventario.EnviadorCorreos.dll
+```
+
+Ejecutarlo dos veces seguidas: la segunda informa `Enviados: 0` y ningún correo sale dos veces (RF-NOT-12). Sin
+Docker: `dotnet run --project src/EnviadorCorreos` (sección 4).
+
+**Provocar un fallo de envío (servidor de correo apagado).**
+
+1. En `.env` cambia estas dos líneas y aplica el cambio al enviador:
+
+   ```
+   CORREO_MODO=smtp
+   SMTP_HOST=smtp.invalido.local
+   ```
+
+   ```powershell
+   docker compose up -d enviador
+   ```
+
+2. Registra un usuario (`POST /api/auth/registro`). La operación responde `201` igual que siempre (RF-NOT-08) y el
+   correo queda `Pendiente`.
+3. Mira el enviador con `docker compose logs -f enviador` (Ctrl+C para salir). En unos 30 s se ve esto:
+
+   ```
+   [error]   #N -> ...: intento 1 de 3, se reintenta. No such host is known...
+   [error]   #N -> ...: intento 2 de 3, se reintenta. ...
+   [fallido] #N -> ...: intento 3 de 3. ...
+   ```
+
+4. Admin: `Invoke-RestMethod "$base/api/correos?estado=Fallido" -Headers $hAdm` muestra el correo con
+   `estado: Fallido`, `intentos: 3` y su `ultimoError`.
+5. Para volver a la normalidad: en `.env` pon de nuevo `CORREO_MODO=consola` y ejecuta `docker compose up -d enviador`.
+   Los correos `Fallido` se quedan así, como constancia.
+
+Las credenciales SMTP (`SMTP_USER`, `SMTP_PASSWORD`, ...) solo se leen de variables de entorno, desde `.env`, que no
+se versiona (RF-NOT-13).
+
+## Reportes
+
+Pieza 5. Los dos reportes devuelven **valores agrupados**, no el listado de registros. La agregación la hace la
+base de datos (`GROUP BY` con `COUNT` y `SUM` en la consulta de EF Core), no la interfaz (RF-REP-03). Código:
+`src/Core/Reportes/ServicioReportesCore.cs` y `src/Negocio/Reportes/` con `src/Datos/RepositorioReportesNegocioEf.cs`.
+
+- **Rango de fechas (RF-REP-05):** `desde` y `hasta` en formato `AAAA-MM-DD`, en hora de República Dominicana
+  (UTC−4). Los dos son opcionales e **inclusivos** (todo el día de `hasta` cuenta). Sin ellos, el rango es todo el
+  historial. Un formato inválido o `desde` posterior a `hasta` da `400`.
+- **Rol (RF-REP-04):** un Administrador ve los datos de todos. Un Estándar solo cuenta **lo suyo**: sus solicitudes
+  y las órdenes que él creó. El campo `alcance` de la respuesta lo dice.
+- Sin token: `401`.
+
+### Reporte del Core: solicitudes de permiso por mes y estado (RF-REP-01)
+
+```powershell
+Invoke-RestMethod "$base/api/reportes/solicitudes-permiso?desde=2026-11-01&hasta=2026-11-30" -Headers $hAdm
+```
+
+Devuelve una fila por **mes y estado** con su `cantidad`, los totales `porEstado` y el `total`. Por ejemplo, 6
+solicitudes de noviembre se resumen en 3 filas: `Aplicada` 3, `Rechazada` 2 y `Pendiente` 1.
+
+### Reporte del negocio: «¿cuánto le compré a cada proveedor en el período?» (RF-REP-02)
+
+```powershell
+Invoke-RestMethod "$base/api/reportes/compras-por-proveedor?desde=2026-11-01&hasta=2026-11-30" -Headers $hAdm
+```
+
+Responde a una pregunta del dominio: cuánto se le compró a cada proveedor. Hay una fila por proveedor, ordenadas del
+mayor monto al menor, con:
+
+- `ordenesRecibidas`;
+- `unidades` (las que entraron al stock);
+- `montoTotal` en DOP;
+- `montoPromedioPorOrden`.
+
+Además trae los totales generales. Solo cuentan las órdenes **Recibidas**, por su **fecha de recepción**: las que
+están en Borrador, Emitida o Cancelada no son compras hechas.
+
+**Comprobar el filtro de fechas** con los mismos datos: el rango de hoy incluye lo de hoy y un rango del año pasado
+da `total: 0` y ninguna fila.
+
+```powershell
+$hoy = Get-Date -Format "yyyy-MM-dd"
+Invoke-RestMethod "$base/api/reportes/compras-por-proveedor?desde=$hoy&hasta=$hoy" -Headers $hAdm
+Invoke-RestMethod "$base/api/reportes/compras-por-proveedor?desde=2025-01-01&hasta=2025-12-31" -Headers $hAdm
+```
+
+**Comprobar el rol:** con el mismo reporte, `$hEst` solo ve sus órdenes y sus montos. Lo de dos Estándar sumado da
+lo que ve el Administrador cuando solo ellos tienen datos.
+
+
 ## 1. Requisitos previos
 
 | Herramienta | Versión |
@@ -218,18 +367,22 @@ src/
 │  ├─ Seguridad/     PoliticasAcceso, HasherContrasena, GeneradorTokens, PoliticaContrasena, ValidadorCorreo
 │  ├─ Permisos/      Gestión de permisos: SolicitudPermiso, TransicionesSolicitudPermiso, ServicioPermisos
 │  ├─ Documentos/    Manejador de documentos: Documento, ServicioDocumentos, AlmacenArchivosEnDisco
+│  ├─ Notificaciones/ Motor de notificaciones: Notificacion, ServicioNotificaciones (bandeja + correo encolado)
+│  ├─ Reportes/      RangoFechas y el reporte del Core (solicitudes por mes y estado)
 │  ├─ Datos/         CoreDbContext, RepositorioPermisosEf, RepositorioDocumentosEf + configuraciones del Core
 │  └─ Comun/         IReloj (RD-11), ExcepcionControlada
 ├─ Negocio/          Dominio (Producto, Proveedor, OrdenCompra...), Estados (máquina de estados) y Servicios
 │                    (incluye ServicioCotizacionOrdenes, que usa la API externa)
+│                    y Reportes/ (compras por proveedor)
 ├─ Datos/            AppDbContext (Core + Negocio), RepositorioNegocioEf, Migraciones y
 │                    Externos/ClienteExchangeRateApi (API externa de tasas de cambio)
 ├─ Api/              Controladores delgados (RD-02), autenticación, filtro de roles, manejo de errores
 └─ EnviadorCorreos/  Consola independiente que envía la cola por SMTP (o la escribe en su log con CORREO_MODO=consola)
-tests/Core.Tests/    Pruebas xUnit sin levantar la API (RD-12): GestionPermisos/, Negocio/, Documentos/, ApiExterna/
+tests/Core.Tests/    Pruebas xUnit sin levantar la API (RD-12): GestionPermisos/, Negocio/, Documentos/, ApiExterna/, Practica5/
 docs/                maquina-de-estados.md, gestion-permisos.md, pruebas.http, bitácoras
 scripts/             variables.ejemplo.ps1 (para ejecutar sin Docker)
 Dockerfile, .dockerignore, docker-compose.yml, .env.example    Contenedor (sección «Contenedor»)
+AGENTS.md            Contexto para el agente al que se delegó la Práctica 5
 ```
 
 ## 3. Variables de entorno (sin Docker)
@@ -253,6 +406,7 @@ Ningún valor sensible está en el repositorio (RD-10). Todo se lee de variables
 | `RECUPERACION_MINUTOS` | No (`30`) | Vigencia del código de recuperación |
 | `SESION_HORAS` | No (`8`) | Vigencia de la credencial de sesión |
 | `CORREO_MODO` | No (`smtp`) | `smtp` envía por SMTP; `consola` escribe cada correo en la salida del Enviador |
+| `CORREO_MAX_INTENTOS` | No (`3`) | Intentos por correo antes de dejarlo `Fallido` (RF-NOT-10) |
 | `EXCHANGE_API_KEY` | Solo para cotizar | Clave de ExchangeRate-API (sección **API externa**). Sin ella, la cotización da `503` controlado |
 | `DOCUMENTOS_RUTA` | No (`src/Api/almacen-documentos`) | Carpeta donde se guardan los archivos de los documentos (en Docker, el volumen `documentos`) |
 | `DOCUMENTOS_MAX_MB` | No (`10`) | Tamaño máximo de un documento |
@@ -339,6 +493,12 @@ Las pruebas se ejecutan con un solo comando; ver la sección **Pruebas** más ab
 | GET | `/api/documentos/{id}` | `Documentos.Ver` | Sesión (dueño o Administrador) |
 | GET | `/api/documentos/{id}/descargar` | `Documentos.Descargar` | Sesión (dueño o Administrador) |
 | DELETE | `/api/documentos/{id}` | `Documentos.Eliminar` | Sesión (dueño o Administrador). Eliminación lógica |
+| GET | `/api/notificaciones` (`?soloNoLeidas=true`) | `Notificaciones.Listar` | Sesión (solo las propias) |
+| POST | `/api/notificaciones/{id}/leer` | `Notificaciones.MarcarLeida` | Sesión (solo el destinatario) |
+| GET / PUT | `/api/notificaciones/preferencias` (`{ "correo": false }`) | `Notificaciones.Preferencias` | Sesión |
+| GET | `/api/correos` (`?estado=Pendiente\|Enviado\|Fallido`) | `Correos.Listar` | Administrador |
+| GET | `/api/reportes/solicitudes-permiso?desde=&hasta=` | `Reportes.SolicitudesPermiso` | Sesión (un Estándar solo cuenta las suyas) |
+| GET | `/api/reportes/compras-por-proveedor?desde=&hasta=` | `Reportes.ComprasPorProveedor` | Sesión (un Estándar solo cuenta sus órdenes) |
 
 La exigencia de rol de **todas** las operaciones está en un solo lugar:
 **`src/Core/Seguridad/PoliticasAcceso.cs`** (RF-CA-05). El atributo `[RequiereOperacion]`
@@ -551,7 +711,7 @@ Desde un clon limpio, en la raíz del repositorio, **un solo comando** ejecuta t
 dotnet test
 ```
 
-Resultado esperado en `practica-4`: `total: 155; failed: 0` (en `practica-3` eran 119). No hace falta SQL Server,
+Resultado esperado en `practica-5`: `total: 195; failed: 0` (en `practica-4` eran 155 y en `practica-3`, 119). No hace falta SQL Server,
 Docker, variables de entorno, internet ni levantar la API (RD-12):
 
 - Gestión de permisos y el módulo de negocio se prueban con repositorios en memoria y un reloj fijo
@@ -561,6 +721,10 @@ Docker, variables de entorno, internet ni levantar la API (RD-12):
   que se crea y se descarta en cada prueba. La aplicación usa SQL Server; SQLite solo existe durante la prueba.
 - El **Manejador de documentos** (`tests/Core.Tests/Documentos/`) se prueba con dobles en memoria y, además, con sus
   piezas reales: archivos en una carpeta temporal y `RepositorioDocumentosEf` sobre SQLite.
+- Las **notificaciones, la cola de correos y los reportes** (`tests/Core.Tests/Practica5/`) se prueban con los
+  servicios y repositorios **reales** sobre SQLite en memoria (y el `ProcesadorCola` real con un envío falso que
+  puede fallar siempre, como un servidor de correo apagado). Cada prueba cita su RF y sigue los criterios de
+  `docs/criterios-notificaciones-reportes.md`.
 - La **API externa** (`tests/Core.Tests/ApiExterna/`) se prueba con un manejador HTTP falso: respuesta correcta, sin
   clave, clave rechazada, API caída, tiempo agotado y respuesta inválida. No usa la red ni una clave real.
 
@@ -574,6 +738,7 @@ Filtros útiles:
 - Solo un requisito de Gestión de permisos: `dotnet test --filter "Requisito=RF-GP-03"`
 - Solo el Manejador de documentos: `dotnet test --filter "FullyQualifiedName~Documentos"`
 - Solo la API externa: `dotnet test --filter "FullyQualifiedName~CotizacionOrdenesTests"`
+- Solo la Práctica 5: `dotnet test --filter "FullyQualifiedName~Practica5"` (o un requisito: `--filter "Requisito=RF-NOT-10"`)
 
 ### Pruebas de la máquina de estados del negocio
 
@@ -777,8 +942,15 @@ de `.github/PULL_REQUEST_TEMPLATE.md` (Qué cambia, Por qué, Cómo probarlo, Qu
 | 17 | `feat/contenedor` | `Dockerfile`, `.dockerignore`, `docker-compose.yml`, `.env.example` y correos en modo consola |
 | 18 | `test/practica-4` | Pruebas del Manejador de documentos y de la API externa |
 | 19 | `docs/practica-4` | Secciones Contenedor, API externa y Manejador de documentos |
+| 20 | `docs/contexto-agente` | `AGENTS.md` y `docs/criterios-notificaciones-reportes.md`, **antes** de delegar |
+| 21 | `feat/notificaciones` | Motor de notificaciones: bandeja, correo, preferencias y eventos (RF-NOT-01 a 07) |
+| 22 | `feat/cola-correos` | Reintentos limitados, estado Fallido y consulta de la cola (RF-NOT-10, 11) |
+| 23 | `feat/reportes` | Reportes agregados del Core y del negocio (RF-REP-01 a 05) |
+| 24 | `test/practica-5` | Pruebas de notificaciones, cola y reportes |
+| 25 | `docs/practica-5` | Secciones Notificaciones y Reportes |
 
 Entregas: etiquetas **`practica-1`** (Práctica 1), **`asignacion-2`** (Asignación 2) y **`practica-2`** con
 `practica-2-defecto-1` a `practica-2-defecto-6` (Práctica 2), y **`practica-3`** con
-`practica-3-defecto-1` a `practica-3-defecto-4` (Práctica 3), y **`practica-4`** (Práctica 4).
+`practica-3-defecto-1` a `practica-3-defecto-4` (Práctica 3), **`practica-4`** (Práctica 4) y **`practica-5`**
+(Práctica 5).
 Bitácoras con el agente: `docs/bitacora-asignacion-1.md` y `docs/bitacora-asignacion-2.md`.
