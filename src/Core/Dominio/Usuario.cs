@@ -35,4 +35,7 @@ public class Usuario
     public DateTime? ContrasenaCambiadaEn { get; set; }
 
     public DateTime FechaCreacion { get; set; }
+
+    /// <summary>RF-NOT-07: si recibe las notificaciones también por correo. La bandeja interna no se apaga.</summary>
+    public bool NotificacionesPorCorreo { get; set; } = true;
 }

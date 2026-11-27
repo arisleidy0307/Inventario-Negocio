@@ -1,6 +1,7 @@
 using Inventario.Core.Comun;
 using Inventario.Core.Datos;
 using Inventario.Core.Documentos;
+using Inventario.Core.Notificaciones;
 using Inventario.Core.Permisos;
 using Inventario.Core.Seguridad;
 using Inventario.Core.Servicios;
@@ -21,6 +22,10 @@ public static class ConfiguracionCore
         services.AddScoped<ServicioUsuarios>();
         services.AddScoped<ServicioContrasenas>();
         services.AddScoped<IRepositorioPermisos, RepositorioPermisosEf>();
+        // Motor de notificaciones (pieza 4): lo usan Gestión de permisos y el negocio a través de INotificador
+        services.AddScoped<IRepositorioNotificaciones, RepositorioNotificacionesEf>();
+        services.AddScoped<ServicioNotificaciones>();
+        services.AddScoped<INotificador>(sp => sp.GetRequiredService<ServicioNotificaciones>());
         services.AddScoped<ServicioPermisos>();
 
         // Manejador de documentos (Pieza 3)
