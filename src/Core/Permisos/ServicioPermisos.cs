@@ -57,7 +57,7 @@ public class ServicioPermisos
             await _notificador.NotificarAdministradoresAsync(TipoNotificacion.SolicitudCreada,
                 $"Nueva solicitud de permiso #{solicitud.Id}",
                 $"{quien} pidió el permiso {op}." +
-                (texto is null ? string.Empty : $" Justificación: {texto}") +
+                (texto is null ? string.Empty : $" Justificación: {texto.TrimEnd('.')}.") +
                 " Revísala en GET /api/solicitudes-permiso/pendientes.");
         }
         return solicitud;
