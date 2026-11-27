@@ -17,5 +17,6 @@
     <ProjectReference Include="..\..\src\Core\Core.csproj" />
     <ProjectReference Include="..\..\src\Negocio\Negocio.csproj" />
     <ProjectReference Include="..\..\src\Datos\Datos.csproj" />
+    <ProjectReference Include="..\..\src\EnviadorCorreos\EnviadorCorreos.csproj" />
   </ItemGroup>
 </Project>
