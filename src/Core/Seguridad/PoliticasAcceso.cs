@@ -44,6 +44,10 @@ public static class Operaciones
     // Cola de correos
     public const string ListarCorreos = "Correos.Listar";
 
+    // Reportes con agregación (pieza 5)
+    public const string ReporteSolicitudesPermiso = "Reportes.SolicitudesPermiso";
+    public const string ReporteComprasPorProveedor = "Reportes.ComprasPorProveedor";
+
     // Módulo de negocio (Inventario). Core solo conoce los nombres, no depende de Negocio (RD-03).
     public const string CrearProducto = "Productos.Crear";
     public const string ListarProductos = "Productos.Listar";
@@ -127,6 +131,10 @@ public static class PoliticasAcceso
 
         // Cola de correos (RF-NOT-11): solo el Administrador la consulta
         [Operaciones.ListarCorreos] = Administrador,
+
+        // Reportes (RF-REP-04): con sesión; el servicio limita a un Estándar a sus propios datos
+        [Operaciones.ReporteSolicitudesPermiso]  = Exigencia.Autenticado,
+        [Operaciones.ReporteComprasPorProveedor] = Exigencia.Autenticado,
 
         // Módulo de negocio (RF-NEG-06): ninguna operación sin sesión válida y exigencia de rol
         [Operaciones.CrearProducto]       = Administrador,
