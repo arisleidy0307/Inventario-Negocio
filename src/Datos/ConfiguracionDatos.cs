@@ -1,5 +1,6 @@
 using Inventario.Core.Datos;
 using Inventario.Datos.Externos;
+using Inventario.Negocio.Reportes;
 using Inventario.Negocio.Servicios;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -33,6 +34,10 @@ public static class ConfiguracionDatos
             new HttpClient { Timeout = TimeSpan.FromSeconds(10) },
             configuracion["EXCHANGE_API_KEY"], configuracion["EXCHANGE_API_URL"]));
         services.AddScoped<ServicioCotizacionOrdenes>();
+
+        // Reporte del negocio (RF-REP-02): agregación en la base
+        services.AddScoped<IRepositorioReportesNegocio, RepositorioReportesNegocioEf>();
+        services.AddScoped<ServicioReportesNegocio>();
         return services;
     }
 }
