@@ -2,6 +2,7 @@ using Inventario.Core.Comun;
 using Inventario.Core.Datos;
 using Inventario.Core.Documentos;
 using Inventario.Core.Notificaciones;
+using Inventario.Core.Reportes;
 using Inventario.Core.Permisos;
 using Inventario.Core.Seguridad;
 using Inventario.Core.Servicios;
@@ -18,6 +19,7 @@ public static class ConfiguracionCore
         services.AddSingleton<GeneradorTokens>();
         services.AddScoped<ColaCorreos>();
         services.AddScoped<ServicioConsultaCorreos>();
+        services.AddScoped<ServicioReportesCore>();
         services.AddScoped<ServicioRegistro>();
         services.AddScoped<ServicioSesion>();
         services.AddScoped<ServicioUsuarios>();
