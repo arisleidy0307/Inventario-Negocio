@@ -1,5 +1,6 @@
 using Inventario.Core.Comun;
 using Inventario.Core.Dominio;
+using Inventario.Core.Notificaciones;
 using Inventario.Core.Seguridad;
 
 namespace Inventario.Core.Permisos;
@@ -9,11 +10,14 @@ public class ServicioPermisos
 {
     private readonly IRepositorioPermisos _repositorio;
     private readonly IReloj _reloj;
+    private readonly INotificador? _notificador;
 
-    public ServicioPermisos(IRepositorioPermisos repositorio, IReloj reloj)
+    /// <param name="notificador">Motor de notificaciones (RF-NOT-01, 02). Opcional: sin él no se notifica.</param>
+    public ServicioPermisos(IRepositorioPermisos repositorio, IReloj reloj, INotificador? notificador = null)
     {
         _repositorio = repositorio;
         _reloj = reloj;
+        _notificador = notificador;
     }
 
     /// <summary>RF-GP-01: la solicitud nace en estado Pendiente.</summary>
@@ -44,6 +48,18 @@ public class ServicioPermisos
         };
         _repositorio.AgregarSolicitud(solicitud);
         await _repositorio.GuardarAsync();
+
+        // RF-NOT-01: avisa a cada Administrador activo, y a nadie más.
+        if (_notificador is not null)
+        {
+            var solicitante = (await _repositorio.ObtenerSolicitudAsync(solicitud.Id))?.Solicitante;
+            var quien = solicitante is null ? $"El usuario #{solicitanteId}" : $"{solicitante.Nombre} ({solicitante.Correo})";
+            await _notificador.NotificarAdministradoresAsync(TipoNotificacion.SolicitudCreada,
+                $"Nueva solicitud de permiso #{solicitud.Id}",
+                $"{quien} pidió el permiso {op}." +
+                (texto is null ? string.Empty : $" Justificación: {texto.TrimEnd('.')}.") +
+                " Revísala en GET /api/solicitudes-permiso/pendientes.");
+        }
         return solicitud;
     }
 
@@ -90,6 +106,12 @@ public class ServicioPermisos
         solicitud.Aplicar(ahora);                            // Aprobada → Aplicada
 
         await _repositorio.GuardarAsync();
+
+        // RF-NOT-02: avisa al solicitante que fue aprobada.
+        if (_notificador is not null)
+            await _notificador.NotificarAsync(solicitud.SolicitanteId, TipoNotificacion.SolicitudAprobada,
+                $"Tu solicitud de permiso #{solicitud.Id} fue aprobada",
+                $"Tu solicitud del permiso {solicitud.Operacion} fue aprobada. Ya puedes usar esa operación.");
         return solicitud;
     }
 
@@ -101,6 +123,12 @@ public class ServicioPermisos
 
         solicitud.Rechazar(administradorId, motivo, _reloj.UtcNow);
         await _repositorio.GuardarAsync();
+
+        // RF-NOT-02: avisa al solicitante que fue rechazada, con el motivo.
+        if (_notificador is not null)
+            await _notificador.NotificarAsync(solicitud.SolicitanteId, TipoNotificacion.SolicitudRechazada,
+                $"Tu solicitud de permiso #{solicitud.Id} fue rechazada",
+                $"Tu solicitud del permiso {solicitud.Operacion} fue rechazada. Motivo: {solicitud.MotivoRechazo}");
         return solicitud;
     }
 

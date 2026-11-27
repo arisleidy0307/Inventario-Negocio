@@ -36,6 +36,11 @@ public static class Operaciones
     public const string DescargarDocumento = "Documentos.Descargar";
     public const string EliminarDocumento = "Documentos.Eliminar";
 
+    // Motor de notificaciones (pieza 4)
+    public const string MisNotificaciones = "Notificaciones.Listar";
+    public const string MarcarNotificacionLeida = "Notificaciones.MarcarLeida";
+    public const string PreferenciasNotificaciones = "Notificaciones.Preferencias";
+
     // Módulo de negocio (Inventario). Core solo conoce los nombres, no depende de Negocio (RD-03).
     public const string CrearProducto = "Productos.Crear";
     public const string ListarProductos = "Productos.Listar";
@@ -111,6 +116,11 @@ public static class PoliticasAcceso
         [Operaciones.VerDocumento]       = Exigencia.Autenticado,
         [Operaciones.DescargarDocumento] = Exigencia.Autenticado,
         [Operaciones.EliminarDocumento]  = Exigencia.Autenticado,
+
+        // Notificaciones (RF-NOT-04, 05, 07): todas con sesión; el servicio exige ser el destinatario
+        [Operaciones.MisNotificaciones]          = Exigencia.Autenticado,
+        [Operaciones.MarcarNotificacionLeida]    = Exigencia.Autenticado,
+        [Operaciones.PreferenciasNotificaciones] = Exigencia.Autenticado,
 
         // Módulo de negocio (RF-NEG-06): ninguna operación sin sesión válida y exigencia de rol
         [Operaciones.CrearProducto]       = Administrador,

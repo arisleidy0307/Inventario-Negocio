@@ -1,5 +1,7 @@
 using Inventario.Core.Comun;
+using System.Globalization;
 using Inventario.Core.Dominio;
+using Inventario.Core.Notificaciones;
 using Inventario.Core.Permisos;
 using Inventario.Core.Seguridad;
 using Inventario.Negocio.Dominio;
@@ -15,12 +17,16 @@ public class ServicioOrdenesCompra
     private readonly IRepositorioNegocio _repo;
     private readonly ServicioPermisos _permisos;
     private readonly IReloj _reloj;
+    private readonly INotificador? _notificador;
 
-    public ServicioOrdenesCompra(IRepositorioNegocio repo, ServicioPermisos permisos, IReloj reloj)
+    /// <param name="notificador">Motor de notificaciones (RF-NOT-03). Opcional: sin él no se notifica.</param>
+    public ServicioOrdenesCompra(IRepositorioNegocio repo, ServicioPermisos permisos, IReloj reloj,
+        INotificador? notificador = null)
     {
         _repo = repo;
         _permisos = permisos;
         _reloj = reloj;
+        _notificador = notificador;
     }
 
     /// <summary>Crea una orden en Borrador para un proveedor existente.</summary>
@@ -71,11 +77,17 @@ public class ServicioOrdenesCompra
         _repo.OrdenesAsync(rolActor == Rol.Administrador ? null : actorId);
 
     /// <summary>Borrador → Emitida (Administrador, exigido en PoliticasAcceso).</summary>
-    public async Task<OrdenCompra> EmitirAsync(int ordenId)
+    public async Task<OrdenCompra> EmitirAsync(int ordenId, int? actorId = null)
     {
         var orden = await BuscarAsync(ordenId);
         orden.Emitir(_reloj.UtcNow);
         await _repo.GuardarAsync();
+
+        // RF-NOT-03 (evento del negocio): avisa a quien creó la orden.
+        await NotificarCreadorAsync(orden, actorId, TipoNotificacion.OrdenEmitida,
+            $"Tu orden de compra #{orden.Id} fue emitida",
+            $"La orden de compra #{orden.Id} a {NombreProveedor(orden)} fue emitida por un Administrador. " +
+            $"Total: {Monto(orden.Total)} DOP.");
         return orden;
     }
 
@@ -109,6 +121,12 @@ public class ServicioOrdenesCompra
         }
 
         await _repo.GuardarAsync();
+
+        // RF-NOT-03 (evento del negocio): avisa a quien creó la orden que la mercancía llegó.
+        await NotificarCreadorAsync(orden, actorId, TipoNotificacion.OrdenRecibida,
+            $"Tu orden de compra #{orden.Id} fue recibida",
+            $"La orden de compra #{orden.Id} a {NombreProveedor(orden)} fue recibida y el stock ya se actualizó " +
+            $"({orden.Detalles.Sum(d => d.Cantidad)} unidades).");
         return orden;
     }
 
@@ -120,6 +138,18 @@ public class ServicioOrdenesCompra
         await _repo.GuardarAsync();
         return orden;
     }
+
+    /// <summary>No se le notifica a nadie su propia acción.</summary>
+    private async Task NotificarCreadorAsync(OrdenCompra orden, int? actorId, TipoNotificacion tipo, string titulo, string mensaje)
+    {
+        if (_notificador is null || orden.CreadaPorUsuarioId == actorId)
+            return;
+        await _notificador.NotificarAsync(orden.CreadaPorUsuarioId, tipo, titulo, mensaje);
+    }
+
+    private static string NombreProveedor(OrdenCompra orden) => orden.Proveedor?.Nombre ?? $"el proveedor #{orden.ProveedorId}";
+
+    private static string Monto(decimal valor) => valor.ToString("#,##0.00", CultureInfo.InvariantCulture);
 
     private async Task<OrdenCompra> BuscarAsync(int id) =>
         await _repo.ObtenerOrdenAsync(id)
