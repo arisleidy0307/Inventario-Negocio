@@ -45,7 +45,7 @@ public class OrdenesCompraController : ControllerBase
     [HttpPost("{id:int}/emitir")]
     [RequiereOperacion(Operaciones.EmitirOrden)]
     public async Task<ActionResult<OrdenCompraResponse>> Emitir(int id) =>
-        Ok(OrdenCompraResponse.Desde(await _ordenes.EmitirAsync(id)));
+        Ok(OrdenCompraResponse.Desde(await _ordenes.EmitirAsync(id, User.UsuarioId())));
 
     [HttpPost("{id:int}/recibir")]
     [RequiereOperacion(Operaciones.RecibirOrden)]
