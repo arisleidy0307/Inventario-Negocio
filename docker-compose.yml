@@ -59,6 +59,7 @@ services:
     environment:
       ConnectionStrings__Default: "Server=db,1433;Database=Inventario;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True"
       CORREO_MODO: ${CORREO_MODO:-consola}
+      CORREO_MAX_INTENTOS: ${CORREO_MAX_INTENTOS:-3}
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USER: ${SMTP_USER:-}
