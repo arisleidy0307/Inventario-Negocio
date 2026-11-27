@@ -151,6 +151,9 @@ namespace Inventario.Datos.Migraciones
                     b.Property<DateTime?>("FechaEnvio")
                         .HasColumnType("datetime2");
 
+                    b.Property<DateTime?>("FechaUltimoIntento")
+                        .HasColumnType("datetime2");
+
                     b.Property<int>("Intentos")
                         .HasColumnType("int");
 
