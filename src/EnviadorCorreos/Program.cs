@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 // Uso:  dotnet run --project src/EnviadorCorreos              -> procesa los pendientes una vez y termina
 //       dotnet run --project src/EnviadorCorreos -- --continuo -> revisa la cola cada 15 segundos (así corre en Docker)
 // CORREO_MODO=smtp (por defecto) envía por SMTP; CORREO_MODO=consola escribe cada correo en esta salida.
+// CORREO_MAX_INTENTOS (por defecto 3): intentos por correo antes de dejarlo Fallido (RF-NOT-10).
 
 var cadena = Environment.GetEnvironmentVariable("ConnectionStrings__Default");
 if (string.IsNullOrWhiteSpace(cadena))
@@ -38,6 +39,11 @@ else
     return 1;
 }
 
+var maxIntentos = int.TryParse(Environment.GetEnvironmentVariable("CORREO_MAX_INTENTOS"), out var mi) && mi > 0
+    ? mi
+    : ProcesadorCola.MaxIntentosPorDefecto;
+Console.WriteLine($"Máximo de intentos por correo: {maxIntentos} (CORREO_MAX_INTENTOS).");
+
 var opciones = new DbContextOptionsBuilder<AppDbContext>().UseSqlServer(cadena).Options;
 var continuo = args.Contains("--continuo");
 IReloj reloj = new RelojSistema();
@@ -47,10 +53,11 @@ do
     try
     {
         await using var db = new AppDbContext(opciones);
-        var procesador = new ProcesadorCola(db, envio, reloj);
+        var procesador = new ProcesadorCola(db, envio, reloj, maxIntentos);
         Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] Revisando la cola de correos...");
-        var (enviados, conError) = await procesador.ProcesarAsync();
-        Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] Enviados: {enviados}. Con error (siguen pendientes): {conError}.");
+        var r = await procesador.ProcesarAsync();
+        Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] Enviados: {r.Enviados}. Con error (se reintentan): {r.Reintentaran}. " +
+                          $"Fallidos (agotaron {maxIntentos} intentos): {r.Fallidos}.");
     }
     catch (Exception ex) when (continuo)
     {

@@ -1,10 +1,13 @@
 namespace Inventario.Core.Dominio;
 
-/// <summary>Estados de un correo en la cola. "Fallido" llega en la semana 11 (pieza 4).</summary>
+/// <summary>Estados de un correo en la cola (RF-NOT-11).</summary>
 public enum EstadoCorreo
 {
     Pendiente = 1,
-    Enviado = 2
+    Enviado = 2,
+
+    /// <summary>RF-NOT-10: agotó el máximo de intentos (CORREO_MAX_INTENTOS). Ya no se reintenta ni se borra.</summary>
+    Fallido = 3
 }
 
 /// <summary>RF-NOT-08: el correo no se envía dentro de la operación; se registra aquí y otro proceso lo envía.</summary>
@@ -18,5 +21,8 @@ public class CorreoEnCola
     public int Intentos { get; set; }
     public DateTime FechaCreacion { get; set; }
     public DateTime? FechaEnvio { get; set; }
+
+    /// <summary>Cuándo el enviador lo intentó por última vez, con éxito o no.</summary>
+    public DateTime? FechaUltimoIntento { get; set; }
     public string? UltimoError { get; set; }
 }
